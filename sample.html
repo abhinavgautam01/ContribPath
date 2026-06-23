@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContribPath - Sample UI</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons for elegant iconography -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        :root {
+            /* Palette: Obsidian & Neon */
+            --bg-base: hsl(240, 10%, 4%);
+            --bg-surface: hsl(240, 10%, 8%);
+            --bg-surface-elevated: hsl(240, 10%, 12%);
+            
+            --accent-primary: hsl(267, 100%, 65%);
+            --accent-glow: hsla(267, 100%, 65%, 0.15);
+            --accent-secondary: hsl(180, 100%, 50%);
+            --accent-secondary-bg: hsla(180, 100%, 50%, 0.1);
+            
+            --text-primary: hsl(0, 0%, 98%);
+            --text-secondary: hsl(240, 5%, 65%);
+            --text-muted: hsl(240, 5%, 45%);
+            
+            --border-subtle: hsla(0, 0%, 100%, 0.08);
+            --border-hover: hsla(267, 100%, 65%, 0.3);
+
+            /* Typography */
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-body: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* Typography Styles */
+        h1, h2, h3 {
+            font-family: var(--font-display);
+            letter-spacing: -0.02em;
+            font-weight: 700;
+        }
+
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+        h2 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+
+        .mono {
+            font-family: var(--font-mono);
+            letter-spacing: 0.05em;
+        }
+
+        /* Layout & Spacing */
+        .container {
+            width: 100%;
+            max-w-width: 800px;
+            max-width: 800px;
+            padding: 8rem 2rem 4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 3rem;
+        }
+
+        /* Glassmorphism Navbar */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.5rem 2rem;
+            background: hsla(240, 10%, 8%, 0.6);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+        }
+        
+        .nav-content {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .logo i { color: var(--accent-primary); }
+
+        /* Interactive Spotlight Card */
+        .card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease-out;
+            cursor: pointer;
+        }
+
+        /* Spotlight Effect via JS */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(800px circle at var(--mouse-x) var(--mouse-y), rgba(255,255,255,0.03), transparent 40%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .card:hover {
+            border-color: var(--border-hover);
+            background-color: var(--bg-surface-elevated);
+            transform: translateY(-2px);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 99px;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+
+        .badge.neon {
+            color: var(--accent-secondary);
+            border-color: var(--accent-secondary-bg);
+            background: var(--accent-secondary-bg);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-meta {
+            display: flex;
+            gap: 1rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            position: relative;
+            z-index: 2;
+        }
+
+        .card-meta span {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Arrow animation on hover */
+        .action-icon {
+            color: var(--text-muted);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .card:hover .action-icon {
+            color: var(--accent-primary);
+            transform: translateX(4px);
+        }
+
+        /* Issue Explainer Section */
+        .explainer {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .code-pointer {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent-secondary);
+            background-color: var(--accent-secondary-bg);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .code-pointer:hover {
+            text-decoration: underline;
+            background-color: hsla(180, 100%, 50%, 0.2);
+        }
+
+        /* Implementation Plan */
+        .plan-step {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0;
+            animation: cascadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .step-number {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            color: var(--text-muted);
+            line-height: 1;
+            opacity: 0.3;
+            font-weight: 700;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-content h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Custom Checkbox */
+        .checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-muted);
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+            margin-top: 2px;
+        }
+
+        .checkbox:checked {
+            border-color: var(--accent-primary);
+            background: var(--accent-primary);
+        }
+
+        .checkbox::after {
+            content: '';
+            position: absolute;
+            width: 5px;
+            height: 10px;
+            border: solid var(--bg-base);
+            border-width: 0 2px 2px 0;
+            top: 2px;
+            left: 5px;
+            transform: rotate(45deg) scale(0);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .checkbox:checked::after {
+            transform: rotate(45deg) scale(1);
+        }
+
+        .plan-step:has(.checkbox:checked) .step-content {
+            opacity: 0.5;
+            text-decoration: line-through;
+            text-decoration-color: var(--text-muted);
+        }
+
+        /* Magnetic Button */
+        .btn-magnetic {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 2rem;
+            background-color: var(--bg-surface-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-magnetic.primary {
+            background-color: var(--bg-base);
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+
+        .btn-magnetic.primary:hover {
+            transform: translateY(-2px);
+            background-color: hsla(267, 100%, 65%, 0.1);
+            box-shadow: 0 0 20px var(--accent-glow);
+            border-color: var(--accent-primary);
+            color: #fff;
+        }
+
+        .btn-magnetic.primary:active {
+            transform: scale(0.96);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Animations */
+        @keyframes cascadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-stagger-1 { animation-delay: 0.1s; }
+        .animate-stagger-2 { animation-delay: 0.2s; }
+        .animate-stagger-3 { animation-delay: 0.3s; }
+        
+        /* Stats Counter */
+        .stat-card {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-value {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-content">
+            <div class="logo">
+                <i class="ph-fill ph-code-block"></i>
+                ContribPath
+            </div>
+            <div class="mono badge" style="font-size: 0.7rem;">v1.0.0-draft</div>
+        </div>
+    </nav>
+
+    <div class="container">
+        
+        <!-- Header Section -->
+        <header class="plan-step animate-stagger-1">
+            <div style="width: 100%;">
+                <h1>Issue Analysis</h1>
+                <p style="color: var(--text-secondary); max-width: 600px;">
+                    We've scanned the repository and generated a custom implementation plan based on your current skill profile.
+                </p>
+            </div>
+        </header>
+
+        <!-- Stats row -->
+        <div class="grid-2 plan-step animate-stagger-1">
+            <div class="card stat-card" style="padding: 1.5rem;">
+                <span class="stat-value" id="counter1">0</span>
+                <span class="stat-label">Estimated Minutes</span>
+            </div>
+            <div class="card stat-card" style="padding: 1.5rem;">
+                <span class="stat-value" id="counter2">0</span>
+                <span class="stat-label">Lines to Change</span>
+            </div>
+        </div>
+
+        <!-- Interactive Issue Card -->
+        <div class="card plan-step animate-stagger-2">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Package info command ignores notes table</h3>
+                    <div class="card-meta">
+                        <span><i class="ph ph-git-merge"></i> owner/repo</span>
+                        <span class="badge neon mono">Good First Issue</span>
+                    </div>
+                </div>
+                <i class="ph ph-arrow-right action-icon" style="font-size: 1.5rem;"></i>
+            </div>
+            <div class="explainer" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
+                <p style="color: var(--text-secondary);">
+                    The <span class="code-pointer">info</span> command currently fails to query and output the notes associated with a package, despite the data existing in the database.
+                </p>
+                <p style="color: var(--text-secondary);">
+                    You will need to modify the <span class="code-pointer">countRows()</span> function inside <a href="#" class="code-pointer">cmd/info.go</a> to include a left join on the notes table.
+                </p>
+            </div>
+        </div>
+
+        <!-- Implementation Plan -->
+        <section style="margin-top: 2rem;">
+            <h2 class="plan-step animate-stagger-2">Implementation Plan</h2>
+            
+            <div class="plan-step animate-stagger-3">
+                <input type="checkbox" class="checkbox" id="step1">
+                <div class="step-number">01</div>
+                <div class="step-content">
+                    <h3><label for="step1" style="cursor:pointer;">Update the SQL Query</label></h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                        Open <span class="code-pointer">cmd/info.go</span> and locate the <span class="code-pointer">buildInfoQuery</span> function. Append <span class="code-pointer">LEFT JOIN package_notes</span> to the main query string.
+                    </p>
+                </div>
+            </div>
+
+            <div class="plan-step animate-stagger-3" style="animation-delay: 0.4s;">
+                <input type="checkbox" class="checkbox" id="step2">
+                <div class="step-number">02</div>
+                <div class="step-content">
+                    <h3><label for="step2" style="cursor:pointer;">Update Struct Definition</label></h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                        In <span class="code-pointer">internal/models/package.go</span>, add a <span class="code-pointer">NotesCount int</span> field to the <span class="code-pointer">PackageInfo</span> struct so it can scan the new column.
+                    </p>
+                </div>
+            </div>
+
+            <div class="plan-step animate-stagger-3" style="animation-delay: 0.5s;">
+                <input type="checkbox" class="checkbox" id="step3">
+                <div class="step-number">03</div>
+                <div class="step-content">
+                    <h3><label for="step3" style="cursor:pointer;">Run Tests</label></h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                        Execute <span class="code-pointer">go test ./cmd/...</span> to verify the changes don't break existing output formatting.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="plan-step animate-stagger-3" style="animation-delay: 0.6s; margin-top: 2rem;">
+                <button class="btn-magnetic primary">
+                    <i class="ph ph-terminal-window"></i>
+                    Generate PR Draft
+                </button>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+        // 1. Spotlight effect for cards
+        const handleOnMouseMove = e => {
+            const { currentTarget: target } = e;
+            const rect = target.getBoundingClientRect(),
+                  x = e.clientX - rect.left,
+                  y = e.clientY - rect.top;
+            
+            target.style.setProperty('--mouse-x', `${x}px`);
+            target.style.setProperty('--mouse-y', `${y}px`);
+        };
+
+        for (const card of document.querySelectorAll('.card')) {
+            card.onmousemove = e => handleOnMouseMove(e);
+        }
+
+        // 2. Ticking number animation for stats
+        function animateValue(obj, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                // Ease out cubic
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                obj.innerHTML = Math.floor(easeOut * (end - start) + start);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        // Trigger animations after slight delay to match entry stagger
+        setTimeout(() => {
+            animateValue(document.getElementById("counter1"), 0, 45, 1500);
+            animateValue(document.getElementById("counter2"), 0, 12, 1200);
+        }, 500);
+        
+        // 3. Magnetic button click effect
+        const btn = document.querySelector('.btn-magnetic');
+        btn.addEventListener('click', function(e) {
+            const originalHtml = this.innerHTML;
+            this.innerHTML = '<i class="ph-bold ph-check" style="color: #4ade80;"></i> Draft Created';
+            this.style.borderColor = '#4ade80';
+            this.style.boxShadow = '0 0 15px rgba(74, 222, 128, 0.3)';
+            
+            setTimeout(() => {
+                this.innerHTML = originalHtml;
+                this.style.borderColor = '';
+                this.style.boxShadow = '';
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
