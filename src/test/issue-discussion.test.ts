@@ -4,6 +4,7 @@ import {
   extractReferencedIssueNumbers,
   extractReferencedIssueNumbersFromDiscussion,
   issueWithDiscussion,
+  insufficientIssueInformationSummary,
   selectRelevantIssueComments,
   type IssueComment
 } from "@/lib/issue-discussion";
@@ -84,6 +85,8 @@ describe("issue discussion preparation", () => {
 
     const enriched = issueWithDiscussion(issue, { body: "", comments: [] });
 
-    expect(enriched.body).toBe("Insufficient information - read the issue and ask the maintainer for clarification.");
+    expect(enriched.body).toBe(insufficientIssueInformationSummary);
+    expect(enriched.issueContext.problem).toBe(insufficientIssueInformationSummary);
+    expect(enriched.issueContext.questionsToAsk).toContain("Can you share the expected behavior, actual behavior, and reproduction steps?");
   });
 });

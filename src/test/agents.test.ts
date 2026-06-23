@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { runIssueDiscovery, runPlanner, runProfileAnalysis } from "@/lib/agents";
+import { runIssueDiscovery, runIssueExplanation, runPlanner, runProfileAnalysis } from "@/lib/agents";
+import { insufficientIssueInformationSummary } from "@/lib/issue-discussion";
 import { findIssue, getState } from "@/lib/store";
 
 describe("demo agent pipeline", () => {
@@ -23,5 +24,15 @@ describe("demo agent pipeline", () => {
     const job = await runPlanner(issue!);
     expect(job.status).toBe("done");
     expect(getState().plans.issue_filter_persistence.steps.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("persists a deterministic explanation for issues without body or comments", async () => {
+    const issue = { ...findIssue("issue_filter_persistence")!, id: "empty_issue", body: "" };
+
+    getState().issues.push(issue);
+    const job = await runIssueExplanation(issue);
+
+    expect(job.status).toBe("done");
+    expect(findIssue("empty_issue")?.issueContext.problem).toBe(insufficientIssueInformationSummary);
   });
 });

@@ -87,7 +87,7 @@ export async function runIssueExplanation(issue: Issue): Promise<AgentJob> {
   setJobRunning(job.id, "Reading issue discussion...", 0.34);
   await sleep(60);
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const explanation = await createLlmProvider().explainIssue(issue);
+  const explanation = await createLlmProvider().explainIssue(issueWithDiscussion(issue, { body: issue.body, comments: [] }));
   const explainedIssue = applyIssueExplanation(issue.id, explanation) ?? issue;
   setJobRunning(job.id, "Validating likely files...", 0.78);
   await sleep(60);

@@ -19,6 +19,8 @@ export type IssueDiscussion = {
   linkedPullRequests?: LinkedPullRequest[];
 };
 
+export const insufficientIssueInformationSummary = "Insufficient information - read the issue and ask the maintainer for clarification.";
+
 const issueReferencePattern = /(?<![\w/])#(\d+)\b/g;
 
 export function extractReferencedIssueNumbers(text: string) {
@@ -44,6 +46,10 @@ export function selectRelevantIssueComments(comments: IssueComment[]) {
   };
 }
 
+function hasDiscussionContent(discussion: IssueDiscussion) {
+  return Boolean(discussion.body.trim() || discussion.comments.some((comment) => comment.body.trim()));
+}
+
 export function issueWithDiscussion(issue: Issue, discussion: IssueDiscussion): Issue {
   const selected = selectRelevantIssueComments(discussion.comments);
   const commentBlock = selected.comments
@@ -62,12 +68,22 @@ export function issueWithDiscussion(issue: Issue, discussion: IssueDiscussion): 
   const gotchas = selected.longDiscussion
     ? [...issue.issueContext.gotchas, "Long discussion - read the full GitHub thread carefully before starting."]
     : issue.issueContext.gotchas;
+  const insufficientInformation = !hasDiscussionContent(discussion);
 
   return {
     ...issue,
-    body: bodyParts.length ? bodyParts.join("\n\n") : "Insufficient information - read the issue and ask the maintainer for clarification.",
+    body: bodyParts.length ? bodyParts.join("\n\n") : insufficientIssueInformationSummary,
     issueContext: {
       ...issue.issueContext,
+      problem: insufficientInformation ? insufficientIssueInformationSummary : issue.issueContext.problem,
+      questionsToAsk: insufficientInformation
+        ? [
+            ...new Set([
+              ...issue.issueContext.questionsToAsk,
+              "Can you share the expected behavior, actual behavior, and reproduction steps?"
+            ])
+          ]
+        : issue.issueContext.questionsToAsk,
       gotchas: [...new Set(gotchas)]
     }
   };
