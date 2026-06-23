@@ -5,6 +5,7 @@ import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplem
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
 import { issueWithDiscussion } from "@/lib/issue-discussion";
+import { testCommandForIssue } from "@/lib/plan-test-command";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
 import { formatPrDraftDescription, type PrDraftOptions } from "@/lib/pr-draft";
 import { createGitHubProvider } from "@/lib/providers/github";
@@ -149,7 +150,7 @@ function planForIssue(issue: Issue): ImplementationPlan {
       title: "Run the project tests",
       description: "Run the closest existing test command and add coverage if the repository has a relevant test suite.",
       files: issue.likelyFiles.map((file) => file.path),
-      command: issue.repoId.includes("pytrail") ? "pytest" : "pnpm test",
+      command: testCommandForIssue(issue),
       tips: ["Include the exact command output in the PR description."]
     }
   ];

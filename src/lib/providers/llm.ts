@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { env } from "@/lib/env";
 import { buildIssueContentBlock } from "@/lib/llm-sanitization";
+import { testCommandForIssue } from "@/lib/plan-test-command";
 import type { ImplementationPlan, Issue, IssueContext, PlanStep } from "@/lib/types";
 
 export interface LlmProvider {
@@ -122,7 +123,7 @@ function createPlanFromIssue(issue: Issue): ImplementationPlan {
       title: "Run the closest tests",
       description: "Run the project-specific test command and include the result in the PR.",
       files,
-      command: "pnpm test",
+      command: testCommandForIssue(issue),
       tips: ["If no test exists, document manual verification clearly."]
     }
   ];
