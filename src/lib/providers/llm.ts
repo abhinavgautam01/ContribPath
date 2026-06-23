@@ -1,9 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { env } from "@/lib/env";
+import { buildImplementationPlanFromIssue } from "@/lib/implementation-plan";
 import { buildIssueContentBlock } from "@/lib/llm-sanitization";
-import { testCommandForIssue } from "@/lib/plan-test-command";
-import type { Difficulty, ImplementationPlan, Issue, IssueExplanationResult, IssueContext, LikelyFile, PlanStep } from "@/lib/types";
+import type { Difficulty, ImplementationPlan, Issue, IssueExplanationResult, IssueContext, LikelyFile } from "@/lib/types";
 
 export interface LlmProvider {
   explainIssue(issue: Issue): Promise<IssueExplanationResult>;
@@ -168,39 +168,4 @@ export async function explainIssueWithJsonRetry(issue: Issue, generateJson: (ret
   return parseIssueExplanation(await generateJson(true), issue);
 }
 
-function createPlanFromIssue(issue: Issue): ImplementationPlan {
-  const files = issue.likelyFiles.map((file) => file.path);
-  const primaryFile = files[0] ?? "README.md";
-  const steps: PlanStep[] = [
-    {
-      step: 1,
-      title: "Read the issue and contribution guide",
-      description: `Confirm the expected behaviour for #${issue.githubIssueNumber} before editing code.`,
-      files: [primaryFile],
-      tips: issue.issueContext.questionsToAsk.length ? issue.issueContext.questionsToAsk : ["Ask a maintainer if the acceptance criteria are unclear."]
-    },
-    {
-      step: 2,
-      title: "Make the focused change",
-      description: `Update ${primaryFile} and related files with the smallest maintainable fix.`,
-      files,
-      tips: issue.issueContext.gotchas
-    },
-    {
-      step: 3,
-      title: "Run the closest tests",
-      description: "Run the project-specific test command and include the result in the PR.",
-      files,
-      command: testCommandForIssue(issue),
-      tips: ["If no test exists, document manual verification clearly."]
-    }
-  ];
-  return {
-    id: `plan_${issue.id}`,
-    issueId: issue.id,
-    steps,
-    prTitle: `${issue.issueContext.type === "docs" ? "docs" : "fix"}: ${issue.title.toLowerCase()}`,
-    prDescription: `## Summary\n\n${issue.aiSummary}\n\n## Changes\n\n- Updates ${primaryFile}\n- Follows the generated implementation plan\n\n## Testing\n\n- ${steps[2]?.command ?? "Manual verification"}\n\n## Related Issue\n\nCloses #${issue.githubIssueNumber}`,
-    generatedAt: new Date().toISOString()
-  };
-}
+const createPlanFromIssue = buildImplementationPlanFromIssue;

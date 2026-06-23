@@ -5,12 +5,12 @@ import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplem
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
 import { issueWithDiscussion } from "@/lib/issue-discussion";
-import { testCommandForIssue } from "@/lib/plan-test-command";
+import { buildImplementationPlanFromIssue } from "@/lib/implementation-plan";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
 import { formatPrDraftDescription, type PrDraftOptions } from "@/lib/pr-draft";
 import { createGitHubProvider } from "@/lib/providers/github";
 import { createLlmProvider } from "@/lib/providers/llm";
-import type { AgentJob, ImplementationPlan, Issue, PlanStep } from "@/lib/types";
+import type { AgentJob, ImplementationPlan, Issue } from "@/lib/types";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -145,41 +145,7 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
 function planForIssue(issue: Issue): ImplementationPlan {
   const existing = getState().plans[issue.id];
   if (existing) return existing;
-
-  const primaryFile = issue.likelyFiles[0]?.path ?? "README.md";
-  const steps: PlanStep[] = [
-    {
-      step: 1,
-      title: "Reproduce the issue locally",
-      description: `Open the repository and confirm the current behaviour described in #${issue.githubIssueNumber}.`,
-      files: [primaryFile],
-      tips: ["Read the contribution guide before changing code."]
-    },
-    {
-      step: 2,
-      title: "Modify the focused implementation path",
-      description: `Update ${primaryFile} using the maintainer context and keep the change scoped to the issue.`,
-      files: issue.likelyFiles.map((file) => file.path),
-      tips: issue.issueContext.gotchas.slice(0, 2)
-    },
-    {
-      step: 3,
-      title: "Run the project tests",
-      description: "Run the closest existing test command and add coverage if the repository has a relevant test suite.",
-      files: issue.likelyFiles.map((file) => file.path),
-      command: testCommandForIssue(issue),
-      tips: ["Include the exact command output in the PR description."]
-    }
-  ];
-
-  return upsertPlan({
-    id: `plan_${issue.id}`,
-    issueId: issue.id,
-    steps,
-    prTitle: `${issue.issueContext.type === "docs" ? "docs" : "fix"}: ${issue.title.toLowerCase()}`,
-    prDescription: `## Summary\n\n${issue.aiSummary}\n\n## Changes\n\n- Updates ${primaryFile}\n- Follows the generated implementation plan\n\n## Testing\n\n- ${steps[2]?.command ?? "Manual verification"}\n\n## Related Issue\n\nCloses #${issue.githubIssueNumber}`,
-    generatedAt: new Date().toISOString()
-  });
+  return upsertPlan(buildImplementationPlanFromIssue(issue));
 }
 
 export async function runPlanner(issue: Issue): Promise<AgentJob> {
