@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "@/lib/demo-data";
-import { issueWithDiscussion, selectRelevantIssueComments, type IssueComment } from "@/lib/issue-discussion";
+import {
+  extractReferencedIssueNumbers,
+  extractReferencedIssueNumbersFromDiscussion,
+  issueWithDiscussion,
+  selectRelevantIssueComments,
+  type IssueComment
+} from "@/lib/issue-discussion";
 
 describe("issue discussion preparation", () => {
+  it("extracts unique issue references from bodies and comments", () => {
+    expect(extractReferencedIssueNumbers("Fixes #12, follows #34, duplicate #12, not owner/repo#99")).toEqual([12, 34]);
+    expect(
+      extractReferencedIssueNumbersFromDiscussion(
+        {
+          body: "Related to #101",
+          comments: [{ author: "maintainer", body: "See #102 and this issue #100." }]
+        },
+        100
+      )
+    ).toEqual([101, 102]);
+  });
+
   it("keeps all comments for normal discussions", () => {
     const comments = [
       { author: "maintainer", body: "Please update the CLI output." },
@@ -38,11 +57,25 @@ describe("issue discussion preparation", () => {
       body: `comment-${index}`
     }));
 
-    const enriched = issueWithDiscussion(issue, { body: "Fresh GitHub body", comments });
+    const enriched = issueWithDiscussion(issue, {
+      body: "Fresh GitHub body",
+      comments,
+      linkedPullRequests: [
+        {
+          number: 44,
+          title: "Prior fix attempt",
+          state: "closed",
+          merged: false,
+          body: "This approach missed notes counts."
+        }
+      ]
+    });
 
     expect(enriched.body).toContain("Fresh GitHub body");
     expect(enriched.body).toContain("Comment 1 by user-0: comment-0");
     expect(enriched.body).toContain("Comment 15 by user-204: comment-204");
+    expect(enriched.body).toContain("PR #44 (closed): Prior fix attempt");
+    expect(enriched.body).toContain("This approach missed notes counts.");
     expect(enriched.issueContext.gotchas).toContain("Long discussion - read the full GitHub thread carefully before starting.");
   });
 

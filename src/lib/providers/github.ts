@@ -1,6 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { aggregateRepoHealth, daysBetween, median, unknownRepoHealth } from "@/lib/github-health";
-import type { IssueDiscussion } from "@/lib/issue-discussion";
+import { extractReferencedIssueNumbersFromDiscussion, type IssueDiscussion } from "@/lib/issue-discussion";
 import { calculateFinalRepoScore, calculateSkillMatchScore, sortRepositoriesByFinalScore } from "@/lib/repo-ranking";
 import type { Difficulty, Issue, Repository, SkillProfile } from "@/lib/types";
 
@@ -172,17 +172,37 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
 
     async getIssueDiscussion(fullName: string, issueNumber: number) {
       const [owner, repo] = fullName.split("/");
-      if (!owner || !repo) return { body: "", comments: [] };
+      if (!owner || !repo) return { body: "", comments: [], linkedPullRequests: [] };
       const [issue, comments] = await Promise.all([
         octokit.issues.get({ owner, repo, issue_number: issueNumber }),
         octokit.paginate(octokit.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 })
       ]);
-      return {
+      const discussion = {
         body: issue.data.body ?? "",
         comments: comments.map((comment) => ({
           author: comment.user?.login ?? "unknown",
           body: comment.body ?? ""
         }))
+      };
+      const linkedPullRequests = (
+        await Promise.all(
+          extractReferencedIssueNumbersFromDiscussion(discussion, issueNumber).map((pullNumber) =>
+            octokit.pulls
+              .get({ owner, repo, pull_number: pullNumber })
+              .then((response) => ({
+                number: response.data.number,
+                title: response.data.title,
+                state: response.data.state,
+                merged: Boolean(response.data.merged_at),
+                body: response.data.body ?? ""
+              }))
+              .catch(() => null)
+          )
+        )
+      ).filter((pull): pull is NonNullable<typeof pull> => Boolean(pull));
+      return {
+        ...discussion,
+        linkedPullRequests
       };
     }
   };
