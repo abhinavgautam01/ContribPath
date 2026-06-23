@@ -69,6 +69,13 @@ export interface Issue {
   state: "open" | "closed";
 }
 
+export interface IssueExplanationResult {
+  issueContext: IssueContext;
+  likelyFiles?: LikelyFile[];
+  difficulty?: Difficulty;
+  timeEstimateMins?: number;
+}
+
 export interface PlanStep {
   step: number;
   title: string;

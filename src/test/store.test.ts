@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createJob, findLatestJob } from "@/lib/store";
+import { applyIssueExplanation, createJob, findIssue, findLatestJob, resetStateForTests } from "@/lib/store";
 
 describe("store jobs", () => {
   afterEach(() => {
     vi.useRealTimers();
+    resetStateForTests();
   });
 
   it("finds the newest job for a type", () => {
@@ -17,5 +18,28 @@ describe("store jobs", () => {
 
     expect(findLatestJob("profile_analysis")?.id).toBe(newer.id);
     expect(findLatestJob("profile_analysis")?.id).not.toBe(older.id);
+  });
+
+  it("applies parsed issue explanation fields to demo state", () => {
+    const issue = findIssue("issue_notes_table");
+    expect(issue).toBeDefined();
+
+    const updated = applyIssueExplanation("issue_notes_table", {
+      issueContext: {
+        problem: "Updated problem",
+        context: "Updated context",
+        gotchas: [],
+        questionsToAsk: [],
+        type: "bug"
+      },
+      likelyFiles: [{ path: "cmd/info.go", reason: "Validated" }],
+      difficulty: "Intermediate",
+      timeEstimateMins: 90
+    });
+
+    expect(updated?.issueContext.problem).toBe("Updated problem");
+    expect(updated?.likelyFiles).toEqual([{ path: "cmd/info.go", reason: "Validated" }]);
+    expect(updated?.difficulty).toBe("Intermediate");
+    expect(updated?.timeEstimateMins).toBe(90);
   });
 });

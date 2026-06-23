@@ -1,6 +1,6 @@
 import { createInitialState } from "@/lib/demo-data";
 import { applyProfilePreferencePatch, type ProfilePreferencePatch } from "@/lib/profile-preferences";
-import type { AgentJob, AppState, ImplementationPlan, Issue, IssueContext, LikelyFile } from "@/lib/types";
+import type { AgentJob, AppState, ImplementationPlan, Issue, IssueExplanationResult, IssueContext, LikelyFile } from "@/lib/types";
 
 const GLOBAL_KEY = "__contribpath_state__";
 
@@ -18,6 +18,11 @@ function state(): AppState {
 
 export function getState(): AppState {
   return state();
+}
+
+export function resetStateForTests() {
+  const globalState = globalThis as GlobalWithState;
+  globalState[GLOBAL_KEY] = createInitialState();
 }
 
 export function createJob(type: AgentJob["type"], stage: string): AgentJob {
@@ -81,6 +86,14 @@ export function updateIssueExplanation(issueId: string, issueContext: IssueConte
   issue.issueContext = issueContext;
   if (likelyFiles) issue.likelyFiles = likelyFiles;
   issue.explainedAt = new Date().toISOString();
+  return issue;
+}
+
+export function applyIssueExplanation(issueId: string, explanation: IssueExplanationResult): Issue | undefined {
+  const issue = updateIssueExplanation(issueId, explanation.issueContext, explanation.likelyFiles);
+  if (!issue) return undefined;
+  if (explanation.difficulty) issue.difficulty = explanation.difficulty;
+  if (explanation.timeEstimateMins) issue.timeEstimateMins = explanation.timeEstimateMins;
   return issue;
 }
 

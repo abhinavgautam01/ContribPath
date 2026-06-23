@@ -1,4 +1,4 @@
-import { completeJob, createJob, getState, setJobRunning, updateIssueExplanation, upsertPlan } from "@/lib/store";
+import { applyIssueExplanation, completeJob, createJob, getState, setJobRunning, upsertPlan } from "@/lib/store";
 import { getGitHubAccessTokenForUser } from "@/lib/auth/oauth-persistence";
 import { validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
 import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
@@ -87,8 +87,8 @@ export async function runIssueExplanation(issue: Issue): Promise<AgentJob> {
   setJobRunning(job.id, "Reading issue discussion...", 0.34);
   await sleep(60);
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const issueContext = await createLlmProvider().explainIssue(issue);
-  const explainedIssue = updateIssueExplanation(issue.id, issueContext) ?? issue;
+  const explanation = await createLlmProvider().explainIssue(issue);
+  const explainedIssue = applyIssueExplanation(issue.id, explanation) ?? issue;
   setJobRunning(job.id, "Validating likely files...", 0.78);
   await sleep(60);
   return completeJob(job.id, "Issue explanation complete", explainedIssue, issue.id);
@@ -105,22 +105,27 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
       ? issueWithDiscussion(issue, await github.getIssueDiscussion(repo.fullName, issue.githubIssueNumber).catch(() => ({ body: issue.body, comments: [] })))
       : issue;
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const issueContext = await createLlmProvider().explainIssue(issueForExplanation);
+  const explanation = await createLlmProvider().explainIssue(issueForExplanation);
   setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
-  let nextIssueContext = issueContext;
-  let nextLikelyFiles = issue.likelyFiles;
+  let nextExplanation = explanation;
   if (github && repo) {
     const treePaths = await github.getRepositoryTree(repo.fullName).catch(() => []);
     if (treePaths.length) {
-      const navigation = validateLikelyFilesAgainstTree({ ...issue, issueContext }, treePaths);
-      nextIssueContext = { ...issueContext, ...navigation.issueContextPatch };
-      nextLikelyFiles = navigation.likelyFiles;
+      const navigation = validateLikelyFilesAgainstTree(
+        { ...issue, issueContext: explanation.issueContext, likelyFiles: explanation.likelyFiles ?? issue.likelyFiles },
+        treePaths
+      );
+      nextExplanation = {
+        ...explanation,
+        issueContext: { ...explanation.issueContext, ...navigation.issueContextPatch },
+        likelyFiles: navigation.likelyFiles
+      };
     }
   }
-  const explainedIssue = await updateStoredIssueExplanation(userId, issue.id, nextIssueContext, nextLikelyFiles);
+  const explainedIssue = await updateStoredIssueExplanation(userId, issue.id, nextExplanation);
   setJobRunning(job.id, "Persisting issue understanding...", 0.86);
   await sleep(60);
-  const completed = completeJob(job.id, "Issue explanation complete", explainedIssue ?? { ...issue, issueContext }, issue.id);
+  const completed = completeJob(job.id, "Issue explanation complete", explainedIssue ?? { ...issue, issueContext: nextExplanation.issueContext }, issue.id);
   await persistAgentJob(userId, completed, { agentName: "IssueUnderstandingAgent", issueId: issue.id });
   return completed;
 }

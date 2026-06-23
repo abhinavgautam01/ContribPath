@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { discoveredIssues, discoveredRepos, implementationPlans, skillProfiles } from "@/lib/db/schema";
 import { applyProfilePreferencePatch, type ProfilePreferencePatch } from "@/lib/profile-preferences";
-import type { Difficulty, HealthBreakdown, ImplementationPlan, Issue, IssueContext, LikelyFile, Repository, SkillProfile } from "@/lib/types";
+import type { Difficulty, HealthBreakdown, ImplementationPlan, Issue, IssueExplanationResult, IssueContext, LikelyFile, Repository, SkillProfile } from "@/lib/types";
 
 export async function getStoredSkillProfile(userId: string) {
   const db = getDb();
@@ -117,14 +117,28 @@ export async function updateStoredIssueFlags(
   return row ? mapIssue(row) : null;
 }
 
-export async function updateStoredIssueExplanation(userId: string, issueId: string, issueContext: IssueContext, likelyFiles?: LikelyFile[]) {
+export async function updateStoredIssueExplanation(
+  userId: string,
+  issueId: string,
+  issueContextOrExplanation: IssueContext | IssueExplanationResult,
+  likelyFiles?: LikelyFile[]
+) {
   const db = getDb();
   if (!db) return null;
+  const explanation =
+    "issueContext" in issueContextOrExplanation
+      ? issueContextOrExplanation
+      : {
+          issueContext: issueContextOrExplanation,
+          likelyFiles
+        };
   const values: Partial<typeof discoveredIssues.$inferInsert> = {
-    issueContext,
+    issueContext: explanation.issueContext,
     explainedAt: new Date()
   };
-  if (likelyFiles) values.likelyFiles = likelyFiles;
+  if (explanation.likelyFiles) values.likelyFiles = explanation.likelyFiles;
+  if (explanation.difficulty) values.difficultyEstimate = explanation.difficulty;
+  if (explanation.timeEstimateMins) values.timeEstimateMins = explanation.timeEstimateMins;
 
   const [row] = await db
     .update(discoveredIssues)
