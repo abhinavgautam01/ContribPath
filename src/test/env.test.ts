@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 
 describe("environment readiness", () => {
   afterEach(() => {
@@ -49,5 +50,13 @@ describe("environment readiness", () => {
     const { getGitHubOAuthScope } = await import("@/lib/env");
 
     expect(getGitHubOAuthScope()).toBe("read:user read:org user:email");
+  });
+
+  it("documents optional OAuth scope toggles in the example environment", () => {
+    const example = readFileSync(".env.example", "utf8");
+
+    expect(example).toContain("GITHUB_OAUTH_READ_ORG=false");
+    expect(example).toContain("EMAIL_NOTIFICATIONS_ENABLED=false");
+    expect(example).not.toContain("public_repo");
   });
 });

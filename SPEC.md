@@ -1611,6 +1611,13 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ```
 
+Optional scope toggles:
+
+```
+GITHUB_OAUTH_READ_ORG=false
+EMAIL_NOTIFICATIONS_ENABLED=false
+```
+
 How to get them:
 
 1. Open GitHub → Settings → Developer settings → OAuth Apps → New OAuth App.
@@ -1624,7 +1631,7 @@ How to get them:
 5. Create the app, then copy `Client ID`.
 6. Generate a new client secret and copy it once; GitHub will not show it again.
 
-OAuth scopes requested by the app: `read:user`, optional `read:org`, optional `user:email`.
+OAuth scopes requested by the app: `read:user` by default. Set `GITHUB_OAUTH_READ_ORG=true` only when org repository filtering is needed. Set `EMAIL_NOTIFICATIONS_ENABLED=true` only when email-based notifications are enabled; this adds `user:email`.
 
 #### Auth and App URLs
 
@@ -1758,6 +1765,8 @@ Required secrets and configuration values (LLM provider keys are required only f
 ```
 GITHUB_CLIENT_ID
 GITHUB_CLIENT_SECRET
+GITHUB_OAUTH_READ_ORG
+EMAIL_NOTIFICATIONS_ENABLED
 AUTH_SECRET
 APP_URL
 DATABASE_URL
