@@ -7,6 +7,7 @@ export interface GitHubProvider {
   getAuthenticatedUser(): Promise<{ login: string; id: number; avatarUrl: string; type: string }>;
   getSkillProfile(username: string): Promise<SkillProfile>;
   searchIssues(profile: SkillProfile): Promise<{ repos: Repository[]; issues: Issue[] }>;
+  getRepositoryTree(fullName: string): Promise<string[]>;
 }
 
 export function createGitHubProvider(accessToken: string): GitHubProvider {
@@ -151,6 +152,20 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
       const repoRank = new Map(repos.map((repo, index) => [repo.id, index]));
       issues.sort((left, right) => (repoRank.get(left.repoId) ?? Number.MAX_SAFE_INTEGER) - (repoRank.get(right.repoId) ?? Number.MAX_SAFE_INTEGER));
       return { repos, issues };
+    },
+
+    async getRepositoryTree(fullName: string) {
+      const [owner, repo] = fullName.split("/");
+      if (!owner || !repo) return [];
+      const repository = await octokit.repos.get({ owner, repo });
+      const branch = repository.data.default_branch;
+      const ref = await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` });
+      const sha = typeof ref.data.object.sha === "string" ? ref.data.object.sha : branch;
+      const tree = await octokit.git.getTree({ owner, repo, tree_sha: sha, recursive: "true" });
+      return tree.data.tree
+        .filter((entry) => entry.type === "blob" && typeof entry.path === "string")
+        .map((entry) => entry.path!)
+        .slice(0, 10000);
     }
   };
 }

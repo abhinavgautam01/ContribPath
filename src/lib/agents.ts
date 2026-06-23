@@ -1,6 +1,7 @@
 import { completeJob, createJob, getState, setJobRunning, updateIssueExplanation, upsertPlan } from "@/lib/store";
 import { getGitHubAccessTokenForUser } from "@/lib/auth/oauth-persistence";
-import { getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
+import { validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
+import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
@@ -97,7 +98,20 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
   await sleep(60);
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
   const issueContext = await createLlmProvider().explainIssue(issue);
-  const explainedIssue = await updateStoredIssueExplanation(userId, issue.id, issueContext);
+  setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
+  const [token, repos] = await Promise.all([getGitHubAccessTokenForUser(userId), getStoredRepos(userId)]);
+  const repo = repos.find((candidate) => candidate.id === issue.repoId);
+  let nextIssueContext = issueContext;
+  let nextLikelyFiles = issue.likelyFiles;
+  if (token && repo) {
+    const treePaths = await createGitHubProvider(token).getRepositoryTree(repo.fullName).catch(() => []);
+    if (treePaths.length) {
+      const navigation = validateLikelyFilesAgainstTree({ ...issue, issueContext }, treePaths);
+      nextIssueContext = { ...issueContext, ...navigation.issueContextPatch };
+      nextLikelyFiles = navigation.likelyFiles;
+    }
+  }
+  const explainedIssue = await updateStoredIssueExplanation(userId, issue.id, nextIssueContext, nextLikelyFiles);
   setJobRunning(job.id, "Persisting issue understanding...", 0.86);
   await sleep(60);
   const completed = completeJob(job.id, "Issue explanation complete", explainedIssue ?? { ...issue, issueContext }, issue.id);
