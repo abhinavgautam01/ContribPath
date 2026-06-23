@@ -4,6 +4,7 @@ import { validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
 import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
+import { issueWithDiscussion } from "@/lib/issue-discussion";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
 import { formatPrDraftDescription, type PrDraftOptions } from "@/lib/pr-draft";
 import { createGitHubProvider } from "@/lib/providers/github";
@@ -95,16 +96,20 @@ export async function runIssueExplanation(issue: Issue): Promise<AgentJob> {
 export async function runIssueExplanationForUser(userId: string, issue: Issue): Promise<AgentJob> {
   const job = createJob("issue_explanation", "Queued issue explanation");
   setJobRunning(job.id, "Reading issue discussion...", 0.34);
-  await sleep(60);
-  setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const issueContext = await createLlmProvider().explainIssue(issue);
-  setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
   const [token, repos] = await Promise.all([getGitHubAccessTokenForUser(userId), getStoredRepos(userId)]);
   const repo = repos.find((candidate) => candidate.id === issue.repoId);
+  const github = token ? createGitHubProvider(token) : null;
+  const issueForExplanation =
+    github && repo
+      ? issueWithDiscussion(issue, await github.getIssueDiscussion(repo.fullName, issue.githubIssueNumber).catch(() => ({ body: issue.body, comments: [] })))
+      : issue;
+  setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
+  const issueContext = await createLlmProvider().explainIssue(issueForExplanation);
+  setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
   let nextIssueContext = issueContext;
   let nextLikelyFiles = issue.likelyFiles;
-  if (token && repo) {
-    const treePaths = await createGitHubProvider(token).getRepositoryTree(repo.fullName).catch(() => []);
+  if (github && repo) {
+    const treePaths = await github.getRepositoryTree(repo.fullName).catch(() => []);
     if (treePaths.length) {
       const navigation = validateLikelyFilesAgainstTree({ ...issue, issueContext }, treePaths);
       nextIssueContext = { ...issueContext, ...navigation.issueContextPatch };

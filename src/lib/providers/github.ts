@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { aggregateRepoHealth, daysBetween, median, unknownRepoHealth } from "@/lib/github-health";
+import type { IssueDiscussion } from "@/lib/issue-discussion";
 import { calculateFinalRepoScore, calculateSkillMatchScore, sortRepositoriesByFinalScore } from "@/lib/repo-ranking";
 import type { Difficulty, Issue, Repository, SkillProfile } from "@/lib/types";
 
@@ -8,6 +9,7 @@ export interface GitHubProvider {
   getSkillProfile(username: string): Promise<SkillProfile>;
   searchIssues(profile: SkillProfile): Promise<{ repos: Repository[]; issues: Issue[] }>;
   getRepositoryTree(fullName: string): Promise<string[]>;
+  getIssueDiscussion(fullName: string, issueNumber: number): Promise<IssueDiscussion>;
 }
 
 export function createGitHubProvider(accessToken: string): GitHubProvider {
@@ -166,6 +168,22 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
         .filter((entry) => entry.type === "blob" && typeof entry.path === "string")
         .map((entry) => entry.path!)
         .slice(0, 10000);
+    },
+
+    async getIssueDiscussion(fullName: string, issueNumber: number) {
+      const [owner, repo] = fullName.split("/");
+      if (!owner || !repo) return { body: "", comments: [] };
+      const [issue, comments] = await Promise.all([
+        octokit.issues.get({ owner, repo, issue_number: issueNumber }),
+        octokit.paginate(octokit.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 })
+      ]);
+      return {
+        body: issue.data.body ?? "",
+        comments: comments.map((comment) => ({
+          author: comment.user?.login ?? "unknown",
+          body: comment.body ?? ""
+        }))
+      };
     }
   };
 }
