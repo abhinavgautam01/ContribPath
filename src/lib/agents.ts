@@ -1,6 +1,6 @@
 import { applyIssueExplanation, completeJob, createJob, getState, setJobRunning, upsertPlan } from "@/lib/store";
 import { getGitHubAccessTokenForUser } from "@/lib/auth/oauth-persistence";
-import { validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
+import { annotateLikelyFilesWithNavigationHints, skippedFileContentGotchas, validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
 import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
@@ -115,10 +115,22 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
         { ...issue, issueContext: explanation.issueContext, likelyFiles: explanation.likelyFiles ?? issue.likelyFiles },
         treePaths
       );
+      const fileContents = await Promise.all(
+        navigation.likelyFiles.map((file) => github.getRepositoryFileContent(repo.fullName, file.path).catch(() => null))
+      );
+      const fileContentResults = fileContents.filter((file): file is NonNullable<typeof file> => Boolean(file));
+      const likelyFilesWithHints = annotateLikelyFilesWithNavigationHints(
+        { ...issue, issueContext: explanation.issueContext, likelyFiles: navigation.likelyFiles },
+        fileContentResults
+      );
       nextExplanation = {
         ...explanation,
-        issueContext: { ...explanation.issueContext, ...navigation.issueContextPatch },
-        likelyFiles: navigation.likelyFiles
+        issueContext: {
+          ...explanation.issueContext,
+          ...navigation.issueContextPatch,
+          gotchas: [...new Set([...navigation.issueContextPatch.gotchas, ...skippedFileContentGotchas(fileContentResults)])]
+        },
+        likelyFiles: likelyFilesWithHints
       };
     }
   }

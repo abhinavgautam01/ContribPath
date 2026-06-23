@@ -12,7 +12,17 @@ describe("display sanitization", () => {
       body: "<img src=x onerror=alert(1)>Body",
       labels: ["bug", "<b>security</b>", "<script></script>"],
       aiSummary: "Fix <a href='javascript:alert(1)'>notes</a>",
-      likelyFiles: [{ path: "src/<b>notes</b>.ts", reason: "<em>Broken</em> query" }],
+      likelyFiles: [
+        {
+          path: "src/<b>notes</b>.ts",
+          reason: "<em>Broken</em> query",
+          navigationHint: {
+            section: "<b>function notes()</b>",
+            reason: "Start <em>here</em>",
+            dependencies: ["<b>react</b>", "<script></script>"]
+          }
+        }
+      ],
       issueContext: {
         ...demoIssues[0].issueContext,
         problem: "<strong>Problem</strong>",
@@ -26,7 +36,15 @@ describe("display sanitization", () => {
     expect(issue.body).toBe("Body");
     expect(issue.labels).toEqual(["bug", "security"]);
     expect(issue.aiSummary).toBe("Fix notes");
-    expect(issue.likelyFiles[0]).toEqual({ path: "src/notes.ts", reason: "Broken query" });
+    expect(issue.likelyFiles[0]).toEqual({
+      path: "src/notes.ts",
+      reason: "Broken query",
+      navigationHint: {
+        section: "function notes()",
+        reason: "Start here",
+        dependencies: ["react"]
+      }
+    });
     expect(issue.issueContext.problem).toBe("Problem");
     expect(issue.issueContext.context).toBe("Trace path");
     expect(issue.issueContext.gotchas).toEqual(["Escaped input"]);

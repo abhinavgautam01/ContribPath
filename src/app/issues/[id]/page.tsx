@@ -72,6 +72,19 @@ export default async function IssueDetailPage({ params }: { params: Promise<{ id
                             <span className="code-pointer">{file.path}</span>
                           )}
                           <p className="mt-2 text-sm text-text-secondary">{file.reason}</p>
+                          {file.navigationHint ? (
+                            <div className="mt-3 space-y-2 rounded-md border border-border-subtle bg-base/60 p-3 text-xs text-text-secondary">
+                              <p>
+                                <span className="font-medium text-text-primary">Section:</span> {file.navigationHint.section}
+                              </p>
+                              <p>{file.navigationHint.reason}</p>
+                              {file.navigationHint.dependencies.length ? (
+                                <p>
+                                  <span className="font-medium text-text-primary">Dependencies:</span> {file.navigationHint.dependencies.join(", ")}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

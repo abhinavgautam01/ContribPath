@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/rest";
+import type { CodebaseNavigationFileContent } from "@/lib/codebase-navigation";
 import { aggregateRepoHealth, daysBetween, median, unknownRepoHealth } from "@/lib/github-health";
 import { extractReferencedIssueNumbersFromDiscussion, type IssueDiscussion } from "@/lib/issue-discussion";
 import { calculateFinalRepoScore, calculateSkillMatchScore, sortRepositoriesByFinalScore } from "@/lib/repo-ranking";
@@ -9,6 +10,7 @@ export interface GitHubProvider {
   getSkillProfile(username: string): Promise<SkillProfile>;
   searchIssues(profile: SkillProfile): Promise<{ repos: Repository[]; issues: Issue[] }>;
   getRepositoryTree(fullName: string): Promise<string[]>;
+  getRepositoryFileContent(fullName: string, path: string): Promise<CodebaseNavigationFileContent | null>;
   getIssueDiscussion(fullName: string, issueNumber: number): Promise<IssueDiscussion>;
 }
 
@@ -168,6 +170,27 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
         .filter((entry) => entry.type === "blob" && typeof entry.path === "string")
         .map((entry) => entry.path!)
         .slice(0, 10000);
+    },
+
+    async getRepositoryFileContent(fullName: string, path: string) {
+      const [owner, repo] = fullName.split("/");
+      if (!owner || !repo || !path) return null;
+      const response = await octokit.repos.getContent({ owner, repo, path });
+      const data = response.data;
+      if (Array.isArray(data) || data.type !== "file") {
+        return { path, skippedReason: `File content for ${path} is not directly accessible; inspect it manually in GitHub.` };
+      }
+      if ((data.size ?? 0) > 1024 * 1024) {
+        return { path, sizeBytes: data.size, skippedReason: `File ${path} is larger than 1MB; inspect the GitHub blob manually.` };
+      }
+      if (!("content" in data) || typeof data.content !== "string") {
+        return { path, skippedReason: `File content for ${path} could not be decoded; inspect it manually in GitHub.` };
+      }
+      return {
+        path,
+        content: Buffer.from(data.content, "base64").toString("utf8"),
+        sizeBytes: data.size
+      };
     },
 
     async getIssueDiscussion(fullName: string, issueNumber: number) {

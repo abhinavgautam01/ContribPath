@@ -37,6 +37,11 @@ export interface Repository {
 export interface LikelyFile {
   path: string;
   reason: string;
+  navigationHint?: {
+    section: string;
+    reason: string;
+    dependencies: string[];
+  };
 }
 
 export interface IssueContext {

@@ -31,7 +31,16 @@ export function sanitizeIssueForDisplay(issue: Issue): Issue {
     aiSummary: sanitizeDisplayText(issue.aiSummary),
     likelyFiles: issue.likelyFiles.map((file) => ({
       path: sanitizeDisplayToken(file.path),
-      reason: sanitizeDisplayText(file.reason)
+      reason: sanitizeDisplayText(file.reason),
+      ...(file.navigationHint
+        ? {
+            navigationHint: {
+              section: sanitizeDisplayText(file.navigationHint.section),
+              reason: sanitizeDisplayText(file.navigationHint.reason),
+              dependencies: file.navigationHint.dependencies.map(sanitizeDisplayToken).filter(Boolean)
+            }
+          }
+        : {})
     })),
     issueContext: sanitizeIssueContext(issue.issueContext)
   };

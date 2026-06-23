@@ -23,7 +23,14 @@ export function sanitizeIssueForLlm(issue: Issue) {
     timeEstimateMins: issue.timeEstimateMins,
     likelyFiles: issue.likelyFiles.map((file) => ({
       path: stripHtmlTags(file.path),
-      reason: stripHtmlTags(file.reason)
+      reason: stripHtmlTags(file.reason),
+      navigationHint: file.navigationHint
+        ? {
+            section: stripHtmlTags(file.navigationHint.section),
+            reason: stripHtmlTags(file.navigationHint.reason),
+            dependencies: sanitizeList(file.navigationHint.dependencies)
+          }
+        : undefined
     })),
     existingContext: {
       problem: stripHtmlTags(issue.issueContext.problem),
