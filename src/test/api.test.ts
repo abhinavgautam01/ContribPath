@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { parseJsonResult, parseOptionalJsonResult, problem } from "@/lib/api";
+import { jobAccepted, parseJsonResult, parseOptionalJsonResult, problem } from "@/lib/api";
 
 describe("api helpers", () => {
+  it("returns the SPEC queued response for accepted jobs", async () => {
+    const response = jobAccepted("job_123");
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ jobId: "job_123", status: "queued" });
+  });
+
   it("returns RFC7807 problem details", async () => {
     const response = problem(404, "Not Found", "Missing resource");
     expect(response.status).toBe(404);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowsClockwise, SpinnerGap } from "@phosphor-icons/react";
 import { JobStatusBar } from "@/components/job-status-bar";
@@ -16,6 +16,10 @@ export function ProfileAnalyzeButton({ analyzedAt }: { analyzedAt: string }) {
   const reanalysis = useMemo(() => getProfileReanalysisState(analyzedAt), [analyzedAt]);
   const busy = status === "running" || isPending;
   const disabled = busy || status === "queued" || !reanalysis.canReanalyze;
+  const handleComplete = useCallback(() => {
+    setStatus("done");
+    startTransition(() => router.refresh());
+  }, [router, startTransition]);
 
   async function analyzeProfile() {
     setStatus("running");
@@ -25,12 +29,7 @@ export function ProfileAnalyzeButton({ analyzedAt }: { analyzedAt: string }) {
       if (!response.ok) throw new Error("Profile analysis failed");
       const payload = (await response.json()) as { jobId?: string; status?: string };
       setJobId(payload.jobId);
-      if (payload.status === "queued") {
-        setStatus("queued");
-        return;
-      }
-      setStatus("done");
-      startTransition(() => router.refresh());
+      setStatus("queued");
     } catch {
       setStatus("failed");
       setError("Could not start analysis.");
@@ -48,7 +47,7 @@ export function ProfileAnalyzeButton({ analyzedAt }: { analyzedAt: string }) {
       ) : null}
       {status === "queued" ? <p className="text-sm text-text-muted">Background analysis queued.</p> : null}
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      <JobStatusBar jobId={jobId} />
+      <JobStatusBar jobId={jobId} onComplete={handleComplete} />
     </div>
   );
 }

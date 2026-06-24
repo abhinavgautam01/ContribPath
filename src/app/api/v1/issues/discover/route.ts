@@ -1,4 +1,4 @@
-import { json, parseOptionalJsonResult, problem } from "@/lib/api";
+import { jobAccepted, parseOptionalJsonResult, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runIssueDiscovery, runIssueDiscoveryForUser } from "@/lib/agents";
 import { getStoredSkillProfile } from "@/lib/db/app-data";
@@ -37,12 +37,12 @@ export async function POST(request: Request) {
 
   if (hasQueueRedis() && isRealUser) {
     const queued = await enqueueAgentJob("issue_discovery", { userId, preferences });
-    if (queued) return json({ jobId: queued.id, status: "queued" });
+    if (queued) return jobAccepted(String(queued.id));
   }
   if (isRealUser) {
     const job = await runIssueDiscoveryForUser(userId!, preferences);
-    return json({ jobId: job.id, status: job.status });
+    return jobAccepted(job.id);
   }
   const job = await runIssueDiscovery(preferences);
-  return json({ jobId: job.id, status: job.status });
+  return jobAccepted(job.id);
 }

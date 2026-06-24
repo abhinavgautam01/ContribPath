@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { Brain, SpinnerGap } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { JobStatusBar } from "@/components/job-status-bar";
@@ -12,6 +12,9 @@ export function IssueExplanationButton({ issueId }: { issueId: string }) {
   const [isPending, setIsPending] = useState(false);
   const [jobId, setJobId] = useState<string>();
   const [error, setError] = useState("");
+  const handleComplete = useCallback(() => {
+    startTransition(() => router.refresh());
+  }, [router, startTransition]);
 
   async function explainIssue() {
     setIsPending(true);
@@ -25,7 +28,6 @@ export function IssueExplanationButton({ issueId }: { issueId: string }) {
     }
     setJobId(body.jobId);
     setIsPending(false);
-    startTransition(() => router.refresh());
   }
 
   const busy = isPending || isRefreshing;
@@ -37,7 +39,7 @@ export function IssueExplanationButton({ issueId }: { issueId: string }) {
         {busy ? "Explaining" : "Explain issue"}
       </MagneticButton>
       {error ? <p className="text-sm text-rose-200">{error}</p> : null}
-      <JobStatusBar jobId={jobId} />
+      <JobStatusBar jobId={jobId} onComplete={handleComplete} />
     </div>
   );
 }

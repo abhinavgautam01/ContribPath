@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { json, problem } from "@/lib/api";
+import { jobAccepted, json, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runPlanner, runPlannerForUser } from "@/lib/agents";
 import { getStoredIssue, getStoredPlan } from "@/lib/db/app-data";
@@ -39,10 +39,10 @@ export async function POST(request: Request, { params }: RouteContext) {
     if (!hasIssueExplanation(storedIssue)) return problem(409, "Issue Explanation Required", "Issue explanation is not complete yet.");
     if (hasQueueRedis()) {
       const queued = await enqueueAgentJob("plan", { userId: realUserId, issueId: storedIssue.id });
-      if (queued) return json({ jobId: queued.id, status: "queued" });
+      if (queued) return jobAccepted(String(queued.id));
     }
     const job = await runPlannerForUser(realUserId!, storedIssue);
-    return json({ jobId: job.id, status: job.status });
+    return jobAccepted(job.id);
   }
   if (!issue) return problem(404, "Not Found", "Issue not found for this user.");
   const existingPlan = getState().plans[issue.id];
@@ -50,10 +50,10 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!hasIssueExplanation(issue)) return problem(409, "Issue Explanation Required", "Issue explanation is not complete yet.");
   if (hasQueueRedis()) {
     const queued = await enqueueAgentJob("plan", { userId: "current", issueId: issue.id });
-    if (queued) return json({ jobId: queued.id, status: "queued" });
+    if (queued) return jobAccepted(String(queued.id));
   }
   const job = await runPlanner(issue);
-  return json({ jobId: job.id, status: job.status });
+  return jobAccepted(job.id);
 }
 
 export async function GET(_: Request, { params }: RouteContext) {

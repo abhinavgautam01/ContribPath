@@ -1,4 +1,4 @@
-import { json, problem } from "@/lib/api";
+import { jobAccepted, json, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runProfileAnalysis, runProfileAnalysisForUser } from "@/lib/agents";
 import { hasQueueRedis } from "@/lib/env";
@@ -41,18 +41,18 @@ export async function POST(request: Request) {
 
   if (hasQueueRedis() && isRealUser) {
     const queued = await enqueueAgentJob("profile_analysis", { userId });
-    if (queued) return json({ jobId: queued.id, status: "queued" });
+    if (queued) return jobAccepted(String(queued.id));
   }
   if (isRealUser) {
     try {
       const job = await runProfileAnalysisForUser(userId!);
-      return json({ jobId: job.id, status: job.status });
+      return jobAccepted(job.id);
     } catch (error) {
       return profileAnalysisErrorResponse(error);
     }
   }
   const job = await runProfileAnalysis();
-  return json({ jobId: job.id, status: job.status });
+  return jobAccepted(job.id);
 }
 
 function profileAnalysisErrorResponse(error: unknown) {

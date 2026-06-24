@@ -1,4 +1,4 @@
-import { json, problem } from "@/lib/api";
+import { jobAccepted, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runIssueExplanation, runIssueExplanationForUser } from "@/lib/agents";
 import { getStoredIssue } from "@/lib/db/app-data";
@@ -29,12 +29,12 @@ export async function POST(request: Request, { params }: RouteContext) {
     const cooldown = getIssueExplanationCooldown(storedIssue);
     if (cooldown.coolingDown) return explanationCooldownProblem(cooldown);
     const job = await runIssueExplanationForUser(realUserId!, storedIssue);
-    return json({ jobId: job.id, status: job.status });
+    return jobAccepted(job.id);
   }
   const issue = findIssue(issueId);
   if (!issue) return problem(404, "Not Found", "Issue not in user's discovered list.");
   const cooldown = getIssueExplanationCooldown(issue);
   if (cooldown.coolingDown) return explanationCooldownProblem(cooldown);
   const job = await runIssueExplanation(issue);
-  return json({ jobId: job.id, status: job.status });
+  return jobAccepted(job.id);
 }

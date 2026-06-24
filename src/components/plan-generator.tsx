@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Lightning, SpinnerGap } from "@phosphor-icons/react";
 import { JobStatusBar } from "@/components/job-status-bar";
@@ -12,6 +12,10 @@ export function PlanGenerator({ issueId }: { issueId: string }) {
   const [status, setStatus] = useState<"idle" | "running" | "queued" | "done" | "failed">("idle");
   const [jobId, setJobId] = useState<string>();
   const [error, setError] = useState<string | null>(null);
+  const handleComplete = useCallback(() => {
+    setStatus("done");
+    startTransition(() => router.refresh());
+  }, [router, startTransition]);
 
   async function generatePlan() {
     setStatus("running");
@@ -22,12 +26,7 @@ export function PlanGenerator({ issueId }: { issueId: string }) {
       if (!response.ok) throw new Error("Plan generation failed");
       const payload = (await response.json()) as { jobId?: string; status?: string };
       setJobId(payload.jobId);
-      if (payload.status === "queued") {
-        setStatus("queued");
-        return;
-      }
-      setStatus("done");
-      startTransition(() => router.refresh());
+      setStatus("queued");
     } catch {
       setStatus("failed");
       setError("Could not generate the plan.");
@@ -51,7 +50,7 @@ export function PlanGenerator({ issueId }: { issueId: string }) {
         {status === "queued" ? <span className="text-sm text-text-muted">Worker queue accepted the job.</span> : null}
         {error ? <span className="text-sm text-danger">{error}</span> : null}
       </div>
-      <JobStatusBar jobId={jobId} />
+      <JobStatusBar jobId={jobId} onComplete={handleComplete} />
     </div>
   );
 }

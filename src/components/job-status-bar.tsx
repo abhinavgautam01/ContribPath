@@ -11,7 +11,7 @@ type JobStatusMessage = {
   error?: string;
 };
 
-export function JobStatusBar({ jobId }: { jobId?: string }) {
+export function JobStatusBar({ jobId, onComplete }: { jobId?: string; onComplete?: () => void }) {
   const [visible, setVisible] = useState(false);
   const [toast, setToast] = useState<{ kind: "success" | "error"; message: string } | null>(null);
   const [progress, setProgress] = useState(0);
@@ -29,7 +29,7 @@ export function JobStatusBar({ jobId }: { jobId?: string }) {
       setStage(payload.stage ?? "Agent pipeline running");
       setProgress(typeof payload.progress === "number" ? payload.progress : 0);
     };
-    const onComplete = (event: MessageEvent) => {
+    const onCompleteEvent = (event: MessageEvent) => {
       const payload = JSON.parse(event.data) as JobStatusMessage;
       const message = payload.stage ?? "Agent pipeline complete";
       setStage(message);
@@ -37,6 +37,7 @@ export function JobStatusBar({ jobId }: { jobId?: string }) {
       window.setTimeout(() => {
         setVisible(false);
         setToast({ kind: "success", message });
+        onComplete?.();
       }, 1600);
       source.close();
     };
@@ -52,12 +53,12 @@ export function JobStatusBar({ jobId }: { jobId?: string }) {
       source.close();
     };
     source.addEventListener("status", onStatus);
-    source.addEventListener("complete", onComplete);
+    source.addEventListener("complete", onCompleteEvent);
     source.addEventListener("error", onError);
     return () => {
       source.close();
     };
-  }, [jobId]);
+  }, [jobId, onComplete]);
 
   return (
     <>

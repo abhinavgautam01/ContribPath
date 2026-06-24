@@ -44,7 +44,8 @@ describe("JobStatusBar", () => {
   });
 
   it("streams status updates and shows a completion toast", () => {
-    render(<JobStatusBar jobId="job_123" />);
+    const onComplete = vi.fn();
+    render(<JobStatusBar jobId="job_123" onComplete={onComplete} />);
     const source = MockEventSource.instances[0];
 
     expect(source.url).toBe("/api/v1/jobs/job_123/status");
@@ -66,6 +67,7 @@ describe("JobStatusBar", () => {
       vi.advanceTimersByTime(1600);
     });
 
+    expect(onComplete).toHaveBeenCalledOnce();
     expect(screen.queryByText("100%")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Profile analysis complete");
   });

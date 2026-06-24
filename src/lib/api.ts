@@ -17,6 +17,10 @@ export function problem(status: number, title: string, detail: string, init?: Re
   );
 }
 
+export function jobAccepted(jobId: string) {
+  return json({ jobId, status: "queued" });
+}
+
 export type ParseJsonResult<T> =
   | { ok: true; data: T }
   | { ok: false; response: NextResponse };

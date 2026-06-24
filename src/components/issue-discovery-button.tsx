@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowsClockwise, WarningCircle } from "@phosphor-icons/react";
 import { MagneticButton } from "@/components/magnetic-button";
 import { JobStatusBar } from "@/components/job-status-bar";
 
 export function IssueDiscoveryButton({ align = "end" }: { align?: "start" | "center" | "end" }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [jobId, setJobId] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState("");
+  const handleComplete = useCallback(() => {
+    startTransition(() => router.refresh());
+  }, [router, startTransition]);
 
   async function refreshSuggestions() {
     setIsPending(true);
@@ -45,7 +51,7 @@ export function IssueDiscoveryButton({ align = "end" }: { align?: "start" | "cen
           {error}
         </p>
       ) : null}
-      <JobStatusBar jobId={jobId} />
+      <JobStatusBar jobId={jobId} onComplete={handleComplete} />
     </div>
   );
 }
