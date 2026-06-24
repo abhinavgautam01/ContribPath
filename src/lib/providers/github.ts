@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import type { CodebaseNavigationFileContent } from "@/lib/codebase-navigation";
+import { classifyGitHubError } from "@/lib/github-errors";
 import { aggregateRepoHealth, daysBetween, maintainerHealthNotes, median, unknownRepoHealth } from "@/lib/github-health";
 import { extractReferencedIssueNumbersFromDiscussion, type IssueDiscussion } from "@/lib/issue-discussion";
 import { calculateFinalRepoScore, calculateSkillMatchScore, sortRepositoriesByFinalScore } from "@/lib/repo-ranking";
@@ -8,6 +9,8 @@ import type { Difficulty, Issue, Repository, SkillProfile } from "@/lib/types";
 const discoveryLabels = ["good first issue", "help wanted"] as const;
 const fallbackDiscoveryLanguages = ["JavaScript", "Python"] as const;
 const pythonAdjacentLanguages = new Set(["jupyter notebook", "markdown"]);
+export const githubSearchRetryBackoffMs = [1000, 2000, 4000] as const;
+export const partialDiscoveryRepoThreshold = 5;
 
 export interface GitHubProvider {
   getAuthenticatedUser(): Promise<{ login: string; id: number; avatarUrl: string; type: string }>;
@@ -36,6 +39,36 @@ export function buildIssueSearchQueries(languages: readonly string[]) {
       q: `is:issue is:open label:"${label}" language:${language} no:assignee`
     }))
   );
+}
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+export function isGitHubSearchQuotaError(error: unknown) {
+  const decision = classifyGitHubError(error);
+  return decision.handled && decision.status === 429;
+}
+
+export function shouldReturnPartialDiscovery(repoCount: number, error: unknown) {
+  return repoCount >= partialDiscoveryRepoThreshold && isGitHubSearchQuotaError(error);
+}
+
+export async function retryGitHubSearch<T>(
+  operation: () => Promise<T>,
+  wait: (ms: number) => Promise<void> = sleep
+) {
+  for (let attempt = 0; attempt <= githubSearchRetryBackoffMs.length; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isGitHubSearchQuotaError(error) || attempt === githubSearchRetryBackoffMs.length) {
+        throw error;
+      }
+      await wait(githubSearchRetryBackoffMs[attempt]!);
+    }
+  }
+  throw new Error("GitHub search retry loop exhausted unexpectedly.");
 }
 
 export function createGitHubProvider(accessToken: string): GitHubProvider {
@@ -106,10 +139,16 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
 
       const runSearches = async (languages: readonly string[]) => {
         for (const query of buildIssueSearchQueries(languages)) {
-          const response = await octokit.search.issuesAndPullRequests({
-            q: query.q,
-            per_page: 10
+          const response = await retryGitHubSearch(() =>
+            octokit.search.issuesAndPullRequests({
+              q: query.q,
+              per_page: 10
+            })
+          ).catch((error) => {
+            if (shouldReturnPartialDiscovery(seenRepos.size, error)) return null;
+            throw error;
           });
+          if (!response) return "partial";
 
           for (const item of response.data.items) {
             if (!item.repository_url || seenIssues.has(item.node_id)) continue;
@@ -178,10 +217,11 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
             });
           }
         }
+        return "complete";
       };
 
-      await runSearches(topLanguages);
-      if (!issues.length) {
+      const searchResult = await runSearches(topLanguages);
+      if (!issues.length && searchResult === "complete") {
         const fallbackLanguages = fallbackDiscoveryLanguages.filter((language) => !topLanguages.includes(language));
         await runSearches(fallbackLanguages);
       }
