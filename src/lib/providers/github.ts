@@ -87,6 +87,11 @@ export function largeFileSkipReason(path: string) {
   return `File ${path} is larger than 1MB and no raw blob URL was available; inspect the GitHub blob manually.`;
 }
 
+export function nonFileContentSkipReason(path: string, type: string | undefined) {
+  if (type === "submodule") return `Submodule ${path} is not accessible; inspect it manually in GitHub.`;
+  return `File content for ${path} is not directly accessible; inspect it manually in GitHub.`;
+}
+
 type RawBlobFetcher = (url: string, init: RequestInit) => Promise<Pick<Response, "ok" | "text">>;
 
 export async function readRawBlobWindow(downloadUrl: string | null | undefined, fetcher: RawBlobFetcher = fetch) {
@@ -325,7 +330,7 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
       const response = await octokit.repos.getContent({ owner, repo, path });
       const data = response.data;
       if (Array.isArray(data) || data.type !== "file") {
-        return { path, skippedReason: `File content for ${path} is not directly accessible; inspect it manually in GitHub.` };
+        return { path, skippedReason: nonFileContentSkipReason(path, Array.isArray(data) ? undefined : data.type) };
       }
       if ((data.size ?? 0) > 1024 * 1024) {
         const content = await readRawBlobWindow(typeof data.download_url === "string" ? data.download_url : null);

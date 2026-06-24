@@ -16,6 +16,9 @@ const binaryExtensions = new Set([
 
 const generatedPathSegments = new Set(["dist", "build", "coverage", "vendor", "node_modules", ".next", "out"]);
 const generatedFilePatterns = [/\.min\.[cm]?js$/i, /\.generated\./i, /(^|\/)package-lock\.json$/i, /(^|\/)pnpm-lock\.yaml$/i];
+const bazelWorkspaceFiles = new Set(["WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"]);
+const bazelBuildFilePattern = /(^|\/)(BUILD|BUILD\.bazel)$/;
+const contributionGuidePattern = /(^|\/)(CONTRIBUTING|CONTRIBUTING\.md|docs\/CONTRIBUTING\.md)$/i;
 
 export type CodebaseNavigationResult = {
   likelyFiles: LikelyFile[];
@@ -57,9 +60,23 @@ export function capTreePathsForNavigation(treePaths: string[], likelyFiles: Pick
   });
 }
 
+export function repositoryBuildSystemGotchas(treePaths: string[]) {
+  const gotchas: string[] = [];
+  const hasBazel = treePaths.some((path) => bazelWorkspaceFiles.has(path) || bazelBuildFilePattern.test(path));
+  if (hasBazel) {
+    const contributionGuide = treePaths.find((path) => contributionGuidePattern.test(path));
+    gotchas.push(
+      contributionGuide
+        ? `Bazel build files detected; read ${contributionGuide} before changing build targets.`
+        : "Bazel build files detected; review project contribution docs before changing build targets."
+    );
+  }
+  return gotchas;
+}
+
 export function validateLikelyFilesAgainstTree(issue: Issue, treePaths: string[]): CodebaseNavigationResult {
   const availablePaths = new Set(capTreePathsForNavigation(treePaths, issue.likelyFiles));
-  const gotchas = [...issue.issueContext.gotchas];
+  const gotchas = [...issue.issueContext.gotchas, ...repositoryBuildSystemGotchas(treePaths)];
   const likelyFiles: LikelyFile[] = [];
   let stale = false;
 

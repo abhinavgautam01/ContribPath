@@ -10,6 +10,7 @@ import {
   largeFileRawBlobNote,
   largeFileRawBlobWindowBytes,
   largeFileSkipReason,
+  nonFileContentSkipReason,
   readRawBlobWindow,
   repositoryFullNameFromApiUrl,
   retryGitHubSearch,
@@ -134,5 +135,12 @@ describe("GitHub issue discovery query planning", () => {
   it("uses clear contributor notes for large file raw snippets and skips", () => {
     expect(largeFileRawBlobNote("src/big.ts", 2_000_000)).toContain("only the first 65536 bytes");
     expect(largeFileSkipReason("src/big.ts")).toBe("File src/big.ts is larger than 1MB and no raw blob URL was available; inspect the GitHub blob manually.");
+  });
+
+  it("uses a specific skip note for inaccessible submodules", () => {
+    expect(nonFileContentSkipReason("vendor/plugin", "submodule")).toBe(
+      "Submodule vendor/plugin is not accessible; inspect it manually in GitHub."
+    );
+    expect(nonFileContentSkipReason("src", "dir")).toBe("File content for src is not directly accessible; inspect it manually in GitHub.");
   });
 });

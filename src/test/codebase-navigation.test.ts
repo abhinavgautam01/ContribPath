@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { annotateLikelyFilesWithNavigationHints, capTreePathsForNavigation, skippedFileContentGotchas, validateLikelyFilesAgainstTree } from "@/lib/codebase-navigation";
+import {
+  annotateLikelyFilesWithNavigationHints,
+  capTreePathsForNavigation,
+  repositoryBuildSystemGotchas,
+  skippedFileContentGotchas,
+  validateLikelyFilesAgainstTree
+} from "@/lib/codebase-navigation";
 import { createInitialState } from "@/lib/demo-data";
 
 describe("codebase navigation", () => {
@@ -99,5 +105,12 @@ describe("codebase navigation", () => {
         { path: "src/app.ts", content: "export function app() {}" }
       ])
     ).toEqual(["File large.log is larger than 1MB; inspect the GitHub blob manually."]);
+  });
+
+  it("adds Bazel build-system notes with contribution guide pointers", () => {
+    expect(repositoryBuildSystemGotchas(["WORKSPACE", "CONTRIBUTING.md", "src/app.ts"])).toEqual([
+      "Bazel build files detected; read CONTRIBUTING.md before changing build targets."
+    ]);
+    expect(repositoryBuildSystemGotchas(["src/app.ts"])).toEqual([]);
   });
 });
