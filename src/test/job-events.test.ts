@@ -31,6 +31,16 @@ describe("job SSE events", () => {
     });
   });
 
+  it("builds terminal error events for cancelled jobs", () => {
+    const events = buildJobEvents({ ...baseJob, status: "cancelled", error: "Account deleted before job completed." });
+
+    expect(events.at(-1)).toEqual({
+      id: 2,
+      event: "error",
+      data: { status: "cancelled", error: "Account deleted before job completed." }
+    });
+  });
+
   it("replays from the last event id inclusively", () => {
     const events = buildJobEvents({ ...baseJob, status: "done", progress: 1 });
     expect(replayJobEvents(events, "2")).toEqual([events[1]]);

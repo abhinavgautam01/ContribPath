@@ -1,9 +1,11 @@
-import { count } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agentJobs, discoveredIssues, discoveredRepos, users } from "@/lib/db/schema";
 import type { AgentJob } from "@/lib/types";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const inFlightJobStatuses = ["queued", "running"] as const;
+export const accountDeletionJobCancellationError = "Account deleted before job completed.";
 
 export function uuidResultId(value: string | undefined) {
   return value && uuidPattern.test(value) ? value : null;
@@ -49,6 +51,25 @@ export async function persistQueuedAgentJob(
     })
     .returning();
   return row ?? null;
+}
+
+export function accountDeletionJobCancellationPatch(completedAt = new Date()) {
+  return {
+    status: "cancelled",
+    error: accountDeletionJobCancellationError,
+    completedAt
+  };
+}
+
+export async function markUserInFlightJobsCancelled(userId: string, completedAt = new Date()) {
+  const db = getDb();
+  if (!db) return 0;
+  const rows = await db
+    .update(agentJobs)
+    .set(accountDeletionJobCancellationPatch(completedAt))
+    .where(and(eq(agentJobs.userId, userId), inArray(agentJobs.status, [...inFlightJobStatuses])))
+    .returning({ id: agentJobs.id });
+  return rows.length;
 }
 
 async function tableCount(table: typeof users | typeof discoveredRepos | typeof discoveredIssues | typeof agentJobs) {

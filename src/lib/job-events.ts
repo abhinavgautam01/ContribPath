@@ -27,6 +27,13 @@ export function buildJobEvents(job: AgentJob | undefined): JobSseEvent[] {
     ];
   }
 
+  if (job.status === "cancelled") {
+    return [
+      { id: 1, event: "status", data: statusPayload(job) },
+      { id: 2, event: "error", data: { status: "cancelled", error: job.error ?? "Job cancelled" } }
+    ];
+  }
+
   if (job.status === "done") {
     return [
       { id: 1, event: "status", data: statusPayload(job) },

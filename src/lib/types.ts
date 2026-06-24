@@ -1,5 +1,5 @@
 export type Difficulty = "Beginner" | "Intermediate" | "Advanced";
-export type JobStatus = "queued" | "running" | "done" | "failed";
+export type JobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
 export interface SkillProfile {
   languages: { name: string; percentage: number; bytes?: number }[];
