@@ -7,6 +7,7 @@ import type { DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
 import { findIssue } from "@/lib/store";
 import { getQueueRedis } from "@/lib/queue/redis";
 import type { AgentJob } from "@/lib/types";
+import { buildWorkerLogEvent } from "@/lib/worker-log";
 
 const connection = getQueueRedis();
 
@@ -55,10 +56,10 @@ worker.on("completed", async (job, result) => {
   if (isAgentJob(result)) {
     await updateQueuedAgentJob(job.id, queuedAgentJobCompletionPatch(result));
   }
-  console.log(JSON.stringify({ level: "info", jobId: job.id, status: "completed" }));
+  console.log(JSON.stringify(buildWorkerLogEvent(job, "completed")));
 });
 
 worker.on("failed", async (job, error) => {
   await updateQueuedAgentJob(job?.id, queuedAgentJobFailurePatch(error));
-  console.error(JSON.stringify({ level: "error", jobId: job?.id, status: "failed", error: error.message }));
+  console.error(JSON.stringify(buildWorkerLogEvent(job, "failed", error)));
 });
