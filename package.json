@@ -11,7 +11,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "worker": "tsx src/worker/agent-worker.ts"
+    "worker": "tsx src/worker/agent-worker.ts",
+    "retention": "tsx src/worker/retention-worker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
