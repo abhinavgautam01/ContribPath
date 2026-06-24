@@ -7,6 +7,10 @@ import {
   hasUserContributedToRepository,
   isGitHubSearchQuotaError,
   isDocumentationProfile,
+  largeFileRawBlobNote,
+  largeFileRawBlobWindowBytes,
+  largeFileSkipReason,
+  readRawBlobWindow,
   repositoryFullNameFromApiUrl,
   retryGitHubSearch,
   shouldIncludeLanguageTaggedRepo,
@@ -111,5 +115,24 @@ describe("GitHub issue discovery query planning", () => {
     expect(shouldIncludeLanguageTaggedRepo({ language: null }, developerProfile)).toBe(false);
     expect(shouldIncludeLanguageTaggedRepo({ language: null }, docsProfile)).toBe(true);
     expect(shouldIncludeLanguageTaggedRepo({ language: "TypeScript" }, developerProfile)).toBe(true);
+  });
+
+  it("reads only a bounded byte range from raw blobs for large files", async () => {
+    const calls: RequestInit[] = [];
+    const content = await readRawBlobWindow("https://raw.githubusercontent.com/owner/repo/main/big.ts", async (_url, init) => {
+      calls.push(init);
+      return {
+        ok: true,
+        text: async () => "x".repeat(largeFileRawBlobWindowBytes + 10)
+      };
+    });
+
+    expect(calls[0]?.headers).toEqual({ Range: `bytes=0-${largeFileRawBlobWindowBytes - 1}` });
+    expect(content).toHaveLength(largeFileRawBlobWindowBytes);
+  });
+
+  it("uses clear contributor notes for large file raw snippets and skips", () => {
+    expect(largeFileRawBlobNote("src/big.ts", 2_000_000)).toContain("only the first 65536 bytes");
+    expect(largeFileSkipReason("src/big.ts")).toBe("File src/big.ts is larger than 1MB and no raw blob URL was available; inspect the GitHub blob manually.");
   });
 });

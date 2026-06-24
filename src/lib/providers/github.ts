@@ -12,6 +12,7 @@ const pythonAdjacentLanguages = new Set(["jupyter notebook", "markdown"]);
 const documentationSignals = ["documentation", "technical writing", "technical writer", "docs"];
 export const githubSearchRetryBackoffMs = [1000, 2000, 4000] as const;
 export const partialDiscoveryRepoThreshold = 5;
+export const largeFileRawBlobWindowBytes = 64 * 1024;
 
 export interface GitHubProvider {
   getAuthenticatedUser(): Promise<{ login: string; id: number; avatarUrl: string; type: string }>;
@@ -76,6 +77,28 @@ export function shouldIncludeLanguageTaggedRepo(
   profile: Pick<SkillProfile, "languages" | "frameworks" | "preferredDomain">
 ) {
   return Boolean(repo.language) || isDocumentationProfile(profile);
+}
+
+export function largeFileRawBlobNote(path: string, sizeBytes: number) {
+  return `File ${path} is larger than 1MB (${sizeBytes} bytes); only the first ${largeFileRawBlobWindowBytes} bytes from the raw GitHub blob were analysed. Inspect the full blob manually before editing.`;
+}
+
+export function largeFileSkipReason(path: string) {
+  return `File ${path} is larger than 1MB and no raw blob URL was available; inspect the GitHub blob manually.`;
+}
+
+type RawBlobFetcher = (url: string, init: RequestInit) => Promise<Pick<Response, "ok" | "text">>;
+
+export async function readRawBlobWindow(downloadUrl: string | null | undefined, fetcher: RawBlobFetcher = fetch) {
+  if (!downloadUrl) return null;
+  const response = await fetcher(downloadUrl, {
+    headers: {
+      Range: `bytes=0-${largeFileRawBlobWindowBytes - 1}`
+    }
+  }).catch(() => null);
+  if (!response?.ok) return null;
+  const text = await response.text().catch(() => null);
+  return text?.slice(0, largeFileRawBlobWindowBytes) ?? null;
 }
 
 function sleep(ms: number) {
@@ -305,7 +328,16 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
         return { path, skippedReason: `File content for ${path} is not directly accessible; inspect it manually in GitHub.` };
       }
       if ((data.size ?? 0) > 1024 * 1024) {
-        return { path, sizeBytes: data.size, skippedReason: `File ${path} is larger than 1MB; inspect the GitHub blob manually.` };
+        const content = await readRawBlobWindow(typeof data.download_url === "string" ? data.download_url : null);
+        if (content) {
+          return {
+            path,
+            content,
+            sizeBytes: data.size,
+            skippedReason: largeFileRawBlobNote(path, data.size)
+          };
+        }
+        return { path, sizeBytes: data.size, skippedReason: largeFileSkipReason(path) };
       }
       if (!("content" in data) || typeof data.content !== "string") {
         return { path, skippedReason: `File content for ${path} could not be decoded; inspect it manually in GitHub.` };
