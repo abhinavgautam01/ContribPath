@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { regeneratePrDraft } from "@/lib/agents";
 import { createInitialState } from "@/lib/demo-data";
-import { draftWatermark, formatPrDraftDescription } from "@/lib/pr-draft";
+import { draftWatermark, fillPullRequestTemplate, formatPrDraftDescription, suggestedCommitMessage } from "@/lib/pr-draft";
 import type { ImplementationPlan } from "@/lib/types";
 
 const baseDescription =
@@ -33,6 +33,28 @@ describe("PR draft formatting", () => {
 
     expect(description).not.toContain("## Testing");
     expect(description).not.toContain("## Preview");
+  });
+
+  it("fills repository pull request templates with generated draft sections", () => {
+    const template = "## Description\n\n<!-- what changed? -->\n\n## Testing\n\n[commands]\n\n## Related Issue\n\n";
+
+    const description = formatPrDraftDescription(bugIssue, { prDescription: baseDescription }, { pullRequestTemplate: template });
+
+    expect(description).toContain("## Description\n\nUpdates docs.");
+    expect(description).toContain("## Testing\n\n- pnpm test");
+    expect(description).toContain("## Related Issue\n\nCloses #214");
+  });
+
+  it("adds a conventional commit suggestion when repository config is detected", () => {
+    const description = formatPrDraftDescription(bugIssue, { prDescription: baseDescription }, { conventionalCommits: true });
+
+    expect(description).toContain("## Suggested Commit");
+    expect(description).toContain("`fix: package info command ignores notes table`");
+    expect(suggestedCommitMessage(docsIssue)).toBe("docs: document local plugin discovery");
+  });
+
+  it("leaves non-heading PR templates alone", () => {
+    expect(fillPullRequestTemplate("Please describe your changes.", baseDescription, bugIssue)).toBe(baseDescription);
   });
 
   it("regenerates a draft without mutating the source plan", async () => {

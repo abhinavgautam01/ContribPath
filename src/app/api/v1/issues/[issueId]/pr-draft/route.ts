@@ -1,8 +1,11 @@
 import { json, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { regeneratePrDraft } from "@/lib/agents";
-import { getStoredIssue, getStoredPlan, saveImplementationPlan } from "@/lib/db/app-data";
+import { getGitHubAccessTokenForUser } from "@/lib/auth/oauth-persistence";
+import { getStoredIssue, getStoredPlan, getStoredRepos, saveImplementationPlan } from "@/lib/db/app-data";
 import { enforceSameOrigin } from "@/lib/origin-guard";
+import { conventionalCommitConfigPaths, prTemplatePaths, type PrDraftOptions } from "@/lib/pr-draft";
+import { createGitHubProvider } from "@/lib/providers/github";
 import { findIssue, getState } from "@/lib/store";
 import { z } from "zod";
 
@@ -27,6 +30,30 @@ async function parsePrDraftOptions(request: Request) {
 
 type RouteContext = { params: Promise<{ issueId: string }> };
 
+async function firstRepositoryFile(fullName: string, paths: string[], token: string) {
+  const github = createGitHubProvider(token);
+  for (const path of paths) {
+    const file = await github.getRepositoryFileContent(fullName, path).catch(() => null);
+    if (file?.content) return file.content;
+  }
+  return undefined;
+}
+
+async function getPrDraftContext(userId: string | null, repoId: string): Promise<Pick<PrDraftOptions, "pullRequestTemplate" | "conventionalCommits">> {
+  if (!userId) return {};
+  const [token, repos] = await Promise.all([getGitHubAccessTokenForUser(userId), getStoredRepos(userId)]);
+  const repo = repos.find((candidate) => candidate.id === repoId);
+  if (!token || !repo) return {};
+  const [pullRequestTemplate, conventionalCommitConfig] = await Promise.all([
+    firstRepositoryFile(repo.fullName, prTemplatePaths, token),
+    firstRepositoryFile(repo.fullName, conventionalCommitConfigPaths, token)
+  ]);
+  return {
+    pullRequestTemplate,
+    conventionalCommits: Boolean(conventionalCommitConfig)
+  };
+}
+
 export async function POST(request: Request, { params }: RouteContext) {
   const { issueId } = await params;
   const originError = enforceSameOrigin(request);
@@ -44,7 +71,8 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!issue) return problem(404, "Not Found", "Issue not found for this user.");
   const existingPlan = realUserId ? await getStoredPlan(realUserId, issue.id) : getState().plans[issue.id];
   if (!existingPlan) return problem(404, "Not Found", "Plan not found for this user.");
-  const plan = await regeneratePrDraft(issue, existingPlan, parsed.data);
+  const draftContext = await getPrDraftContext(realUserId, issue.repoId);
+  const plan = await regeneratePrDraft(issue, existingPlan, { ...parsed.data, ...draftContext });
   if (realUserId) {
     await saveImplementationPlan(realUserId, plan);
   }
