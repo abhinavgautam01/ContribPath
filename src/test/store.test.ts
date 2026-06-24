@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyIssueExplanation, createJob, findIssue, findLatestJob, resetStateForTests } from "@/lib/store";
+import { applyIssueExplanation, completeJob, createJob, findIssue, findLatestInFlightJob, findLatestJob, resetStateForTests } from "@/lib/store";
 
 describe("store jobs", () => {
   afterEach(() => {
@@ -18,6 +18,18 @@ describe("store jobs", () => {
 
     expect(findLatestJob("profile_analysis")?.id).toBe(newer.id);
     expect(findLatestJob("profile_analysis")?.id).not.toBe(older.id);
+  });
+
+  it("finds the newest queued or running job for dashboard resume", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2030-01-01T10:00:00.000Z"));
+    const older = createJob("profile_analysis", "Older analysis");
+    completeJob(older.id, "Complete", {}, "profile");
+
+    vi.setSystemTime(new Date("2030-01-01T10:05:00.000Z"));
+    const active = createJob("issue_discovery", "Discovering issues");
+
+    expect(findLatestInFlightJob()?.id).toBe(active.id);
   });
 
   it("applies parsed issue explanation fields to demo state", () => {

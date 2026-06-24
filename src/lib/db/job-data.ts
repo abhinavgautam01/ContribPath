@@ -1,4 +1,4 @@
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { agentJobs, discoveredIssues, discoveredRepos, users } from "@/lib/db/schema";
 import type { AgentJob } from "@/lib/types";
@@ -70,6 +70,25 @@ export async function markUserInFlightJobsCancelled(userId: string, completedAt 
     .where(and(eq(agentJobs.userId, userId), inArray(agentJobs.status, [...inFlightJobStatuses])))
     .returning({ id: agentJobs.id });
   return rows.length;
+}
+
+export async function getUserInFlightAgentJobs(userId: string, limit = 5) {
+  const db = getDb();
+  if (!db) return [];
+  return db
+    .select({
+      queueJobId: agentJobs.queueJobId,
+      status: agentJobs.status,
+      createdAt: agentJobs.createdAt
+    })
+    .from(agentJobs)
+    .where(and(eq(agentJobs.userId, userId), inArray(agentJobs.status, [...inFlightJobStatuses]), isNotNull(agentJobs.queueJobId)))
+    .orderBy(desc(agentJobs.createdAt))
+    .limit(limit);
+}
+
+export function isResumableJobStatus(status: AgentJob["status"] | null | undefined) {
+  return status === "queued" || status === "running";
 }
 
 async function tableCount(table: typeof users | typeof discoveredRepos | typeof discoveredIssues | typeof agentJobs) {

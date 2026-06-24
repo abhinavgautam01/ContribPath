@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { accountDeletionJobCancellationError, accountDeletionJobCancellationPatch, inFlightJobStatuses, uuidResultId } from "@/lib/db/job-data";
+import {
+  accountDeletionJobCancellationError,
+  accountDeletionJobCancellationPatch,
+  inFlightJobStatuses,
+  isResumableJobStatus,
+  uuidResultId
+} from "@/lib/db/job-data";
 
 describe("job data helpers", () => {
   it("persists only UUID-shaped result identifiers", () => {
@@ -17,5 +23,13 @@ describe("job data helpers", () => {
       error: accountDeletionJobCancellationError,
       completedAt
     });
+  });
+
+  it("recognizes queue states that should resume on dashboard return", () => {
+    expect(isResumableJobStatus("queued")).toBe(true);
+    expect(isResumableJobStatus("running")).toBe(true);
+    expect(isResumableJobStatus("done")).toBe(false);
+    expect(isResumableJobStatus("failed")).toBe(false);
+    expect(isResumableJobStatus(null)).toBe(false);
   });
 });

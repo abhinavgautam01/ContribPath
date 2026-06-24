@@ -3,6 +3,7 @@ import { GitHubQuotaNotice } from "@/components/github-quota-notice";
 import { IssueDiscoveryButton } from "@/components/issue-discovery-button";
 import { IssueCard } from "@/components/issue-card";
 import { MagneticLink } from "@/components/magnetic-button";
+import { ResumeJobStatus } from "@/components/resume-job-status";
 import { SkillCard } from "@/components/skill-card";
 import { getCurrentWorkspace } from "@/lib/workspace-data";
 
@@ -25,6 +26,7 @@ export default async function DashboardPage() {
           </div>
         </div>
         <GitHubQuotaNotice quota={workspace.githubQuota} />
+        <ResumeJobStatus jobId={workspace.activeJobId} />
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
           <SkillCard profile={workspace.profile} />
           <section className="space-y-4">

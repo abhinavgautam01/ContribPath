@@ -44,6 +44,12 @@ export function findLatestJob(type: AgentJob["type"]): AgentJob | undefined {
     .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0];
 }
 
+export function findLatestInFlightJob(): AgentJob | undefined {
+  return Object.values(state().jobs)
+    .filter((job) => job.status === "queued" || job.status === "running")
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0];
+}
+
 export function completeJob(jobId: string, stage: string, result: unknown, resultId?: string): AgentJob {
   const job = state().jobs[jobId];
   if (!job) {
