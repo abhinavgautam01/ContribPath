@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Account, Profile, User } from "next-auth";
 import { getDb } from "@/lib/db/client";
 import { oauthAccounts, skillProfiles, users } from "@/lib/db/schema";
@@ -45,6 +45,13 @@ export function hasGitHubUsernameChanged(previousLogin: string | null | undefine
 
 export function expiredProfilePatchForUsernameChange() {
   return { expiresAt: new Date(0) };
+}
+
+export function revokedTokenPatch(now = new Date()) {
+  return {
+    revokedAt: now,
+    updatedAt: now
+  };
 }
 
 export async function persistGitHubOAuthAccount(input: OAuthPersistenceInput): Promise<OAuthPersistenceResult> {
@@ -158,7 +165,18 @@ export async function getGitHubAccessTokenForUser(userId: string) {
   const [row] = await db
     .select({ accessTokenEncrypted: oauthAccounts.accessTokenEncrypted })
     .from(oauthAccounts)
-    .where(eq(oauthAccounts.userId, userId))
+    .where(and(eq(oauthAccounts.userId, userId), eq(oauthAccounts.provider, "github"), isNull(oauthAccounts.revokedAt)))
     .limit(1);
   return row?.accessTokenEncrypted ? decryptToken(row.accessTokenEncrypted) : null;
+}
+
+export async function markGitHubOAuthTokenRevokedForUser(userId: string) {
+  if (!hasDatabase()) return false;
+  const db = getDb();
+  if (!db) return false;
+  await db
+    .update(oauthAccounts)
+    .set(revokedTokenPatch())
+    .where(and(eq(oauthAccounts.userId, userId), eq(oauthAccounts.provider, "github"), isNull(oauthAccounts.revokedAt)));
+  return true;
 }

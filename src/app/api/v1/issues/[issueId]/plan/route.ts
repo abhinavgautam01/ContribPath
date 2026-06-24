@@ -4,7 +4,7 @@ import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runPlanner, runPlannerForUser } from "@/lib/agents";
 import { getStoredIssue, getStoredPlan } from "@/lib/db/app-data";
 import { hasQueueRedis } from "@/lib/env";
-import { githubErrorResponse } from "@/lib/github-errors";
+import { githubConnectionErrorResponse } from "@/lib/github-connection";
 import { hasIssueExplanation } from "@/lib/issue-workflow";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { enqueueAgentJob } from "@/lib/queue/jobs";
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       const job = await runPlannerForUser(realUserId!, storedIssue);
       return jobAccepted(job.id);
     } catch (error) {
-      const githubResponse = githubErrorResponse(error);
+      const githubResponse = await githubConnectionErrorResponse(error, realUserId);
       if (githubResponse) return githubResponse;
       throw error;
     }

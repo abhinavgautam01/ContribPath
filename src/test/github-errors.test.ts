@@ -73,6 +73,18 @@ describe("GitHub API error handling", () => {
     });
   });
 
+  it("can clear Auth.js cookies when a GitHub connection is lost", async () => {
+    const response = githubErrorResponse({ status: 401 }, { clearAuthCookies: true });
+
+    expect(response?.status).toBe(401);
+    expect(response?.headers.get("set-cookie")).toContain("authjs.session-token=");
+    expect(response?.headers.get("set-cookie")).toContain("Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+    await expect(response?.json()).resolves.toMatchObject({
+      title: "GitHub Connection Lost",
+      detail: "Your GitHub connection was lost. Please sign in again."
+    });
+  });
+
   it("ignores unrelated errors", () => {
     expect(classifyGitHubError({ status: 404 })).toEqual({ handled: false });
     expect(githubErrorResponse(new Error("local failure"))).toBeNull();

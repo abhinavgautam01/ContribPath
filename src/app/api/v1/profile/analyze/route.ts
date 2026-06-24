@@ -3,7 +3,8 @@ import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runProfileAnalysis, runProfileAnalysisForUser } from "@/lib/agents";
 import { getStoredSkillProfile } from "@/lib/db/app-data";
 import { hasQueueRedis } from "@/lib/env";
-import { githubErrorResponse, isGitHubPrimaryRateLimitError } from "@/lib/github-errors";
+import { githubConnectionErrorResponse } from "@/lib/github-connection";
+import { isGitHubPrimaryRateLimitError } from "@/lib/github-errors";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { isFreshSkillProfile } from "@/lib/profile-api";
 import { ProfileAnalysisBlockedError } from "@/lib/profile-analysis";
@@ -79,7 +80,7 @@ async function profileAnalysisErrorResponse(error: unknown, userId: string | und
       );
     }
   }
-  const githubResponse = githubErrorResponse(error);
+  const githubResponse = await githubConnectionErrorResponse(error, userId);
   if (githubResponse) return githubResponse;
   throw error;
 }

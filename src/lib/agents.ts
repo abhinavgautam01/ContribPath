@@ -5,6 +5,7 @@ import { annotateLikelyFilesWithNavigationHints, skippedFileContentGotchas, vali
 import { getStoredRepos, getStoredSkillProfile, saveDiscoveryResults, saveImplementationPlan, saveSkillProfile, updateStoredIssueExplanation } from "@/lib/db/app-data";
 import { persistAgentJob } from "@/lib/db/job-data";
 import { applyDiscoveryPreferences, type DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
+import { isGitHubConnectionLost, markGitHubTokenRevokedOnConnectionLost } from "@/lib/github-connection";
 import { issueWithDiscussion } from "@/lib/issue-discussion";
 import { buildImplementationPlanFromIssue } from "@/lib/implementation-plan";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
@@ -28,6 +29,17 @@ function explanationStepTimeoutFallback(issue: Issue, error: unknown) {
   throw error;
 }
 
+async function rethrowAfterGitHubRevocation(userId: string, error: unknown): Promise<never> {
+  await markGitHubTokenRevokedOnConnectionLost(userId, error);
+  throw error;
+}
+
+async function fallbackUnlessGitHubConnectionLost<T>(userId: string, error: unknown, fallback: T): Promise<T> {
+  await markGitHubTokenRevokedOnConnectionLost(userId, error);
+  if (isGitHubConnectionLost(error)) throw error;
+  return fallback;
+}
+
 export async function runProfileAnalysis(): Promise<AgentJob> {
   const job = createJob("profile_analysis", "Queued profile analysis");
   setJobRunning(job.id, "Analysing public repositories...", 0.35);
@@ -46,10 +58,10 @@ export async function runProfileAnalysisForUser(userId: string): Promise<AgentJo
   }
   const github = createGitHubProvider(token);
   setJobRunning(job.id, "Fetching authenticated GitHub profile...", 0.35);
-  const user = await github.getAuthenticatedUser();
+  const user = await github.getAuthenticatedUser().catch((error) => rethrowAfterGitHubRevocation(userId, error));
   assertAnalyzableGitHubAccount(user);
   setJobRunning(job.id, "Analysing repositories and merged PRs...", 0.72);
-  const profile = await github.getSkillProfile(user.login);
+  const profile = await github.getSkillProfile(user.login).catch((error) => rethrowAfterGitHubRevocation(userId, error));
   await saveSkillProfile(userId, profile);
   const completed = completeJob(job.id, "Profile analysis complete", profile, "profile");
   await persistAgentJob(userId, completed, { agentName: "SkillAnalysisAgent" });
@@ -86,7 +98,9 @@ export async function runIssueDiscoveryForUser(userId: string, preferences: Disc
     throw new Error("Skill profile not found. Run profile analysis first.");
   }
   setJobRunning(job.id, "Searching GitHub for candidate issues...", 0.48);
-  const discovery = await createGitHubProvider(token).searchIssues(applyDiscoveryPreferences(profile, preferences));
+  const discovery = await createGitHubProvider(token)
+    .searchIssues(applyDiscoveryPreferences(profile, preferences))
+    .catch((error) => rethrowAfterGitHubRevocation(userId, error));
   setJobRunning(job.id, "Persisting ranked repository and issue matches...", 0.82);
   const saved = await saveDiscoveryResults(userId, discovery.repos, discovery.issues);
   const completed = completeJob(job.id, "Issue discovery complete", saved, "issues");
@@ -120,7 +134,12 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
   const github = token ? createGitHubProvider(token) : null;
   const issueForExplanation =
     github && repo
-      ? issueWithDiscussion(issue, await github.getIssueDiscussion(repo.fullName, issue.githubIssueNumber).catch(() => ({ body: issue.body, comments: [] })))
+      ? issueWithDiscussion(
+          issue,
+          await github
+            .getIssueDiscussion(repo.fullName, issue.githubIssueNumber)
+            .catch((error) => fallbackUnlessGitHubConnectionLost(userId, error, { body: issue.body, comments: [] }))
+        )
       : issue;
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
   const explanation = await runAgentStep("Issue explanation LLM", () => createLlmProvider().explainIssue(issueForExplanation), {
@@ -132,14 +151,16 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
   setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
   let nextExplanation = explanation;
   if (github && repo) {
-    const treePaths = await github.getRepositoryTree(repo.fullName).catch(() => []);
+    const treePaths = await github.getRepositoryTree(repo.fullName).catch((error) => fallbackUnlessGitHubConnectionLost(userId, error, []));
     if (treePaths.length) {
       const navigation = validateLikelyFilesAgainstTree(
         { ...issue, issueContext: explanation.issueContext, likelyFiles: explanation.likelyFiles ?? issue.likelyFiles },
         treePaths
       );
       const fileContents = await Promise.all(
-        navigation.likelyFiles.map((file) => github.getRepositoryFileContent(repo.fullName, file.path).catch(() => null))
+        navigation.likelyFiles.map((file) =>
+          github.getRepositoryFileContent(repo.fullName, file.path).catch((error) => fallbackUnlessGitHubConnectionLost(userId, error, null))
+        )
       );
       const fileContentResults = fileContents.filter((file): file is NonNullable<typeof file> => Boolean(file));
       const likelyFilesWithHints = annotateLikelyFilesWithNavigationHints(

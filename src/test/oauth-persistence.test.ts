@@ -3,7 +3,8 @@ import {
   expiredProfilePatchForUsernameChange,
   expiresAtFromAccount,
   hasGitHubUsernameChanged,
-  normalizeGitHubProfile
+  normalizeGitHubProfile,
+  revokedTokenPatch
 } from "@/lib/auth/oauth-persistence";
 
 describe("OAuth persistence helpers", () => {
@@ -51,5 +52,13 @@ describe("OAuth persistence helpers", () => {
 
   it("expires stored skill profiles when a username change requires re-analysis", () => {
     expect(expiredProfilePatchForUsernameChange().expiresAt.toISOString()).toBe("1970-01-01T00:00:00.000Z");
+  });
+
+  it("marks revoked OAuth tokens with a durable timestamp patch", () => {
+    const now = new Date("2026-06-21T12:00:00.000Z");
+    expect(revokedTokenPatch(now)).toEqual({
+      revokedAt: now,
+      updatedAt: now
+    });
   });
 });

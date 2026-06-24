@@ -2,7 +2,7 @@ import { jobAccepted, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runIssueExplanation, runIssueExplanationForUser } from "@/lib/agents";
 import { getStoredIssue } from "@/lib/db/app-data";
-import { githubErrorResponse } from "@/lib/github-errors";
+import { githubConnectionErrorResponse } from "@/lib/github-connection";
 import { getIssueExplanationCooldown } from "@/lib/issue-workflow";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { findIssue } from "@/lib/store";
@@ -33,7 +33,7 @@ export async function POST(request: Request, { params }: RouteContext) {
       const job = await runIssueExplanationForUser(realUserId!, storedIssue);
       return jobAccepted(job.id);
     } catch (error) {
-      const githubResponse = githubErrorResponse(error);
+      const githubResponse = await githubConnectionErrorResponse(error, realUserId);
       if (githubResponse) return githubResponse;
       throw error;
     }

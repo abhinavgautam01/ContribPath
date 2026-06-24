@@ -1,4 +1,5 @@
 import { json } from "@/lib/api";
+import { clearAuthCookies } from "@/lib/auth/session-cookies";
 
 type HeaderReader = {
   get?: (name: string) => string | null | undefined;
@@ -103,10 +104,10 @@ export function isGitHubPrimaryRateLimitError(error: unknown) {
   return githubError.status === 403 && String(headerValue(githubError.response?.headers, "x-ratelimit-remaining")) === "0";
 }
 
-export function githubErrorResponse(error: unknown) {
+export function githubErrorResponse(error: unknown, options: { clearAuthCookies?: boolean } = {}) {
   const decision = classifyGitHubError(error);
   if (!decision.handled) return null;
-  return json(
+  const response = json(
     {
       type: `https://contribpath.dev/errors/${decision.title.toLowerCase().replaceAll(" ", "-")}`,
       title: decision.title,
@@ -122,4 +123,8 @@ export function githubErrorResponse(error: unknown) {
       }
     }
   );
+  if (decision.status === 401 && options.clearAuthCookies) {
+    clearAuthCookies(response);
+  }
+  return response;
 }
