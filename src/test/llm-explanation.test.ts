@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "@/lib/demo-data";
-import { explainIssueWithJsonRetry, parseIssueExplanation } from "@/lib/providers/llm";
+import { explainIssueWithJsonRetry, llmTimeoutWarning, parseIssueExplanation, timeoutIssueExplanation } from "@/lib/providers/llm";
 
 describe("LLM issue explanation parsing", () => {
   it("parses the SPEC snake_case explanation payload", () => {
@@ -118,5 +118,15 @@ describe("LLM issue explanation parsing", () => {
     );
 
     expect(explanation.issueContext.type).toBe(issue.issueContext.type);
+  });
+
+  it("returns a partial explanation with a warning when the LLM times out", () => {
+    const issue = createInitialState().issues[0];
+    const explanation = timeoutIssueExplanation(issue);
+
+    expect(explanation.issueContext.problem).toBe(issue.issueContext.problem);
+    expect(explanation.issueContext.gotchas).toContain(llmTimeoutWarning);
+    expect(explanation.likelyFiles).toBe(issue.likelyFiles);
+    expect(explanation.timeEstimateMins).toBe(issue.timeEstimateMins);
   });
 });

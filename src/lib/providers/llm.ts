@@ -10,6 +10,9 @@ export interface LlmProvider {
   createPlan(issue: Issue): Promise<ImplementationPlan>;
 }
 
+export const llmExplanationTimeoutMs = 30_000;
+export const llmTimeoutWarning = "LLM timed out before completing the explanation; review the GitHub issue manually for missing context.";
+
 export function createLlmProvider(): LlmProvider {
   if (env.LLM_PROVIDER === "openai" && env.OPENAI_API_KEY) {
     return createOpenAiProvider();
@@ -133,6 +136,18 @@ export function parseIssueExplanation(text: string, issue: Issue): IssueExplanat
   if (parsed) return parsed;
   return {
     issueContext: issue.issueContext,
+    likelyFiles: issue.likelyFiles,
+    difficulty: issue.difficulty,
+    timeEstimateMins: issue.timeEstimateMins
+  };
+}
+
+export function timeoutIssueExplanation(issue: Issue): IssueExplanationResult {
+  return {
+    issueContext: {
+      ...issue.issueContext,
+      gotchas: [...new Set([...issue.issueContext.gotchas, llmTimeoutWarning])]
+    },
     likelyFiles: issue.likelyFiles,
     difficulty: issue.difficulty,
     timeEstimateMins: issue.timeEstimateMins

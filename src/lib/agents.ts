@@ -10,7 +10,7 @@ import { buildImplementationPlanFromIssue } from "@/lib/implementation-plan";
 import { assertAnalyzableGitHubAccount } from "@/lib/profile-analysis";
 import { formatPrDraftDescription, type PrDraftOptions } from "@/lib/pr-draft";
 import { createGitHubProvider } from "@/lib/providers/github";
-import { createLlmProvider } from "@/lib/providers/llm";
+import { createLlmProvider, llmExplanationTimeoutMs, timeoutIssueExplanation } from "@/lib/providers/llm";
 import type { AgentJob, ImplementationPlan, Issue } from "@/lib/types";
 
 function sleep(ms: number) {
@@ -20,6 +20,11 @@ function sleep(ms: number) {
 function failAndThrow(jobId: string, error: unknown): never {
   const message = error instanceof Error ? error.message : "Agent step failed";
   failJob(jobId, message);
+  throw error;
+}
+
+function explanationStepTimeoutFallback(issue: Issue, error: unknown) {
+  if (error instanceof AgentStepTimeoutError) return timeoutIssueExplanation(issue);
   throw error;
 }
 
@@ -94,9 +99,13 @@ export async function runIssueExplanation(issue: Issue): Promise<AgentJob> {
   setJobRunning(job.id, "Reading issue discussion...", 0.34);
   await sleep(60);
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const explanation = await runAgentStep("Issue explanation LLM", () =>
-    createLlmProvider().explainIssue(issueWithDiscussion(issue, { body: issue.body, comments: [] }))
-  ).catch((error) => failAndThrow(job.id, error));
+  const explanation = await runAgentStep(
+    "Issue explanation LLM",
+    () => createLlmProvider().explainIssue(issueWithDiscussion(issue, { body: issue.body, comments: [] })),
+    { timeoutMs: llmExplanationTimeoutMs, attempts: 1 }
+  )
+    .catch((error) => explanationStepTimeoutFallback(issue, error))
+    .catch((error) => failAndThrow(job.id, error));
   const explainedIssue = applyIssueExplanation(issue.id, explanation) ?? issue;
   setJobRunning(job.id, "Validating likely files...", 0.78);
   await sleep(60);
@@ -114,9 +123,12 @@ export async function runIssueExplanationForUser(userId: string, issue: Issue): 
       ? issueWithDiscussion(issue, await github.getIssueDiscussion(repo.fullName, issue.githubIssueNumber).catch(() => ({ body: issue.body, comments: [] })))
       : issue;
   setJobRunning(job.id, "Summarising issue with LLM provider...", 0.62);
-  const explanation = await runAgentStep("Issue explanation LLM", () => createLlmProvider().explainIssue(issueForExplanation)).catch((error) =>
-    failAndThrow(job.id, error)
-  );
+  const explanation = await runAgentStep("Issue explanation LLM", () => createLlmProvider().explainIssue(issueForExplanation), {
+    timeoutMs: llmExplanationTimeoutMs,
+    attempts: 1
+  })
+    .catch((error) => explanationStepTimeoutFallback(issueForExplanation, error))
+    .catch((error) => failAndThrow(job.id, error));
   setJobRunning(job.id, "Validating suggested files against GitHub tree...", 0.78);
   let nextExplanation = explanation;
   if (github && repo) {
