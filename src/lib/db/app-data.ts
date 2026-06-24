@@ -277,6 +277,11 @@ export async function saveImplementationPlan(userId: string, plan: Implementatio
 }
 
 export function mapSkillProfile(row: typeof skillProfiles.$inferSelect): SkillProfile {
+  const rawData = typeof row.rawData === "object" && row.rawData !== null && !Array.isArray(row.rawData) ? (row.rawData as Partial<SkillProfile>) : {};
+  const contributedRepositories = Array.isArray(rawData.contributedRepositories)
+    ? rawData.contributedRepositories.filter((repo): repo is string => typeof repo === "string" && Boolean(repo.trim()))
+    : undefined;
+
   return {
     languages: row.languages as SkillProfile["languages"],
     frameworks: row.frameworks as string[],
@@ -284,6 +289,7 @@ export function mapSkillProfile(row: typeof skillProfiles.$inferSelect): SkillPr
     preferredDomain: row.preferredDomain,
     totalRepos: row.totalRepos ?? 0,
     totalMergedPRs: row.totalPrs ?? 0,
+    ...(contributedRepositories ? { contributedRepositories } : {}),
     analyzedAt: (row.analyzedAt ?? new Date()).toISOString(),
     expiresAt: (row.expiresAt ?? new Date()).toISOString()
   };

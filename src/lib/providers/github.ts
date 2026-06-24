@@ -9,6 +9,7 @@ import type { Difficulty, Issue, Repository, SkillProfile } from "@/lib/types";
 const discoveryLabels = ["good first issue", "help wanted"] as const;
 const fallbackDiscoveryLanguages = ["JavaScript", "Python"] as const;
 const pythonAdjacentLanguages = new Set(["jupyter notebook", "markdown"]);
+const documentationSignals = ["documentation", "technical writing", "technical writer", "docs"];
 export const githubSearchRetryBackoffMs = [1000, 2000, 4000] as const;
 export const partialDiscoveryRepoThreshold = 5;
 
@@ -39,6 +40,42 @@ export function buildIssueSearchQueries(languages: readonly string[]) {
       q: `is:issue is:open label:"${label}" language:${language} no:assignee`
     }))
   );
+}
+
+export function normalizeRepoFullName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function repositoryFullNameFromApiUrl(value: string | null | undefined) {
+  const marker = "/repos/";
+  if (!value?.includes(marker)) return null;
+  return value.split(marker)[1]?.toLowerCase() ?? null;
+}
+
+export function contributedRepositorySet(profile: Pick<SkillProfile, "contributedRepositories">) {
+  return new Set((profile.contributedRepositories ?? []).map(normalizeRepoFullName).filter(Boolean));
+}
+
+export function hasUserContributedToRepository(profile: Pick<SkillProfile, "contributedRepositories">, fullName: string) {
+  return contributedRepositorySet(profile).has(normalizeRepoFullName(fullName));
+}
+
+export function isDocumentationProfile(profile: Pick<SkillProfile, "languages" | "frameworks" | "preferredDomain">) {
+  const searchable = [
+    ...profile.languages.map((language) => language.name),
+    ...profile.frameworks,
+    profile.preferredDomain ?? ""
+  ]
+    .join(" ")
+    .toLowerCase();
+  return documentationSignals.some((signal) => searchable.includes(signal));
+}
+
+export function shouldIncludeLanguageTaggedRepo(
+  repo: { language?: string | null },
+  profile: Pick<SkillProfile, "languages" | "frameworks" | "preferredDomain">
+) {
+  return Boolean(repo.language) || isDocumentationProfile(profile);
 }
 
 function sleep(ms: number) {
@@ -112,11 +149,18 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
       const prs = await octokit.search
         .issuesAndPullRequests({
           q: `is:pr is:merged author:${username}`,
-          per_page: 30
+          per_page: 100
         })
         .catch(() => ({ data: { total_count: 0 } }));
 
       const totalMergedPRs = prs.data.total_count;
+      const contributedRepositories = [
+        ...new Set(
+          ("items" in prs.data && Array.isArray(prs.data.items) ? prs.data.items : [])
+            .map((item) => repositoryFullNameFromApiUrl(item.repository_url))
+            .filter((repo): repo is string => Boolean(repo))
+        )
+      ];
       const difficulty: Difficulty = totalMergedPRs > 20 ? "Advanced" : totalMergedPRs >= 5 ? "Intermediate" : "Beginner";
 
       return {
@@ -126,6 +170,7 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
         preferredDomain: "Developer Tools",
         totalRepos: repos.length,
         totalMergedPRs,
+        contributedRepositories,
         analyzedAt: new Date().toISOString(),
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       };
@@ -156,6 +201,8 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
             const repoResponse = await octokit.repos.get({ owner, repo: repoName });
             const repo = repoResponse.data;
             if (repo.archived || repo.stargazers_count < 50) continue;
+            if (hasUserContributedToRepository(profile, repo.full_name)) continue;
+            if (!shouldIncludeLanguageTaggedRepo(repo, profile)) continue;
             if (repo.stargazers_count > 100000 && profile.difficulty !== "Advanced") continue;
             if ((repo.open_issues_count ?? 0) > 1000) continue;
             if (repo.pushed_at) {
@@ -179,7 +226,7 @@ export function createGitHubProvider(accessToken: string): GitHubProvider {
               githubRepoId: repo.id,
               fullName: repo.full_name,
               description: repo.description ?? "",
-              language: repo.language ?? query.language,
+              language: repo.language ?? "Documentation",
               stars: repo.stargazers_count,
               forks: repo.forks_count,
               healthScore: health.healthScore,

@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   buildIssueSearchQueries,
+  contributedRepositorySet,
   discoverySearchLanguages,
   githubSearchRetryBackoffMs,
+  hasUserContributedToRepository,
   isGitHubSearchQuotaError,
+  isDocumentationProfile,
+  repositoryFullNameFromApiUrl,
   retryGitHubSearch,
+  shouldIncludeLanguageTaggedRepo,
   shouldReturnPartialDiscovery
 } from "@/lib/providers/github";
 import type { SkillProfile } from "@/lib/types";
@@ -74,5 +79,37 @@ describe("GitHub issue discovery query planning", () => {
     expect(result).toBe("ok");
     expect(attempts).toBe(3);
     expect(waits).toEqual([1000, 2000]);
+  });
+
+  it("normalizes contributed repositories from GitHub API URLs", () => {
+    expect(repositoryFullNameFromApiUrl("https://api.github.com/repos/Owner/Repo")).toBe("owner/repo");
+    expect(repositoryFullNameFromApiUrl("https://api.github.com/user/repos")).toBeNull();
+    expect(contributedRepositorySet({ contributedRepositories: ["Owner/Repo", " other/Project "] })).toEqual(
+      new Set(["owner/repo", "other/project"])
+    );
+  });
+
+  it("excludes repositories the user has already contributed to", () => {
+    expect(hasUserContributedToRepository({ contributedRepositories: ["owner/repo"] }, "Owner/Repo")).toBe(true);
+    expect(hasUserContributedToRepository({ contributedRepositories: ["owner/repo"] }, "owner/other")).toBe(false);
+  });
+
+  it("only includes no-language repositories for documentation-oriented profiles", () => {
+    const developerProfile: Pick<SkillProfile, "languages" | "frameworks" | "preferredDomain"> = {
+      languages: [{ name: "TypeScript", percentage: 100 }],
+      frameworks: ["React"],
+      preferredDomain: "Developer Tools"
+    };
+    const docsProfile: Pick<SkillProfile, "languages" | "frameworks" | "preferredDomain"> = {
+      languages: [{ name: "Technical Writing", percentage: 100 }],
+      frameworks: [],
+      preferredDomain: "Documentation"
+    };
+
+    expect(isDocumentationProfile(developerProfile)).toBe(false);
+    expect(isDocumentationProfile(docsProfile)).toBe(true);
+    expect(shouldIncludeLanguageTaggedRepo({ language: null }, developerProfile)).toBe(false);
+    expect(shouldIncludeLanguageTaggedRepo({ language: null }, docsProfile)).toBe(true);
+    expect(shouldIncludeLanguageTaggedRepo({ language: "TypeScript" }, developerProfile)).toBe(true);
   });
 });

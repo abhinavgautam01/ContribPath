@@ -13,13 +13,14 @@ describe("app data mappers", () => {
       preferredDomain: "Developer Tools",
       totalRepos: 12,
       totalPrs: 5,
-      rawData: {},
+      rawData: { contributedRepositories: ["owner/repo"] },
       analyzedAt: new Date("2026-06-21T10:00:00.000Z"),
       expiresAt: new Date("2026-06-22T10:00:00.000Z")
     } satisfies typeof skillProfiles.$inferSelect);
 
     expect(profile.totalMergedPRs).toBe(5);
     expect(profile.languages[0]?.name).toBe("Go");
+    expect(profile.contributedRepositories).toEqual(["owner/repo"]);
   });
 
   it("maps stored repos and issues into UI-safe records", () => {

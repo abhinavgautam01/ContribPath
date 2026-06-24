@@ -8,6 +8,7 @@ export interface SkillProfile {
   preferredDomain: string | null;
   totalRepos: number;
   totalMergedPRs: number;
+  contributedRepositories?: string[];
   analyzedAt: string;
   expiresAt: string;
 }
