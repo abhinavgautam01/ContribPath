@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { AnalyticsBridge } from "@/components/analytics-bridge";
 import { CookieConsentBanner } from "@/components/cookie-consent-banner";
 import "./globals.css";
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className="dark">
       <body className={`${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable}`}>
         {children}
+        <AnalyticsBridge postHogKey={process.env.NEXT_PUBLIC_POSTHOG_KEY} postHogHost={process.env.NEXT_PUBLIC_POSTHOG_HOST} />
         <CookieConsentBanner />
       </body>
     </html>

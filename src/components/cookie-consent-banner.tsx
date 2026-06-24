@@ -4,7 +4,7 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { ShieldCheck, X } from "@phosphor-icons/react";
 import { MagneticButton } from "@/components/magnetic-button";
-import { cookieConsentStorageKey, normalizeCookieConsent, type CookieConsentChoice } from "@/lib/cookie-consent";
+import { cookieConsentChangedEvent, cookieConsentStorageKey, normalizeCookieConsent, type CookieConsentChoice } from "@/lib/cookie-consent";
 
 export function CookieConsentBanner() {
   const [choice, setChoice] = useState<CookieConsentChoice | null>("declined");
@@ -17,6 +17,7 @@ export function CookieConsentBanner() {
 
   function choose(nextChoice: CookieConsentChoice) {
     window.localStorage.setItem(cookieConsentStorageKey, nextChoice);
+    window.dispatchEvent(new Event(cookieConsentChangedEvent));
     setChoice(nextChoice);
   }
 

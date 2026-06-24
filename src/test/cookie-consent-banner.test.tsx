@@ -1,8 +1,8 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CookieConsentBanner } from "@/components/cookie-consent-banner";
-import { cookieConsentStorageKey } from "@/lib/cookie-consent";
+import { cookieConsentChangedEvent, cookieConsentStorageKey } from "@/lib/cookie-consent";
 
 describe("CookieConsentBanner", () => {
   beforeEach(() => {
@@ -22,5 +22,17 @@ describe("CookieConsentBanner", () => {
     render(<CookieConsentBanner />);
 
     expect(screen.queryByText("Analytics cookies")).not.toBeInTheDocument();
+  });
+
+  it("emits a same-tab consent event when analytics are accepted", async () => {
+    const listener = vi.fn();
+    window.addEventListener(cookieConsentChangedEvent, listener);
+
+    render(<CookieConsentBanner />);
+    fireEvent.click(await screen.findByRole("button", { name: /accept analytics/i }));
+
+    expect(window.localStorage.getItem(cookieConsentStorageKey)).toBe("accepted");
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener(cookieConsentChangedEvent, listener);
   });
 });
