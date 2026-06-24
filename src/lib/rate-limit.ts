@@ -8,8 +8,7 @@ export type RateLimitRule = {
 };
 
 type Bucket = {
-  count: number;
-  resetAt: number;
+  timestamps: number[];
 };
 
 export type RateLimitResult = {
@@ -47,19 +46,24 @@ export function getClientIpIdentity(request: Request | undefined, fallbackIdenti
   return `ip:${forwardedFor || realIp || cloudflareIp || fallbackIdentity}`;
 }
 
-export function applyFixedWindowLimit(bucket: Bucket | undefined, rule: RateLimitRule, now = Date.now()) {
-  const activeBucket = !bucket || bucket.resetAt <= now ? { count: 0, resetAt: now + rule.windowMs } : bucket;
-  const count = activeBucket.count + 1;
-  const nextBucket = { ...activeBucket, count };
-  const retryAfter = Math.max(0, Math.ceil((nextBucket.resetAt - now) / 1000));
+export function applySlidingWindowLimit(bucket: Bucket | undefined, rule: RateLimitRule, now = Date.now()) {
+  const windowStart = now - rule.windowMs;
+  const timestamps = (bucket?.timestamps ?? []).filter((timestamp) => timestamp > windowStart);
+  timestamps.push(now);
+
+  const count = timestamps.length;
+  const oldestRelevantRequest = timestamps[0] ?? now;
+  const retryAfter = count > rule.limit ? Math.max(0, Math.ceil((oldestRelevantRequest + rule.windowMs - now) / 1000)) : 0;
+  const resetAt = count > rule.limit ? oldestRelevantRequest + rule.windowMs : now + rule.windowMs;
+
   return {
-    bucket: nextBucket,
+    bucket: { timestamps },
     result: {
       limited: count > rule.limit,
       limit: rule.limit,
       remaining: Math.max(0, rule.limit - count),
       retryAfter,
-      resetAt: new Date(nextBucket.resetAt).toISOString()
+      resetAt: new Date(resetAt).toISOString()
     } satisfies RateLimitResult
   };
 }
@@ -71,24 +75,29 @@ export async function checkRateLimit(action: RateLimitAction, identity: string) 
   const now = Date.now();
 
   if (redis) {
-    const count = await redis.incr(key);
-    let ttlMs = await redis.pttl(key);
-    if (count === 1 || ttlMs < 0) {
-      await redis.pexpire(key, rule.windowMs);
-      ttlMs = rule.windowMs;
-    }
-    const retryAfter = Math.max(0, Math.ceil(ttlMs / 1000));
+    const windowStart = now - rule.windowMs;
+    const member = `${now}:${Math.random().toString(36).slice(2)}`;
+    await redis.zremrangebyscore(key, 0, windowStart);
+    await redis.zadd(key, now, member);
+    await redis.pexpire(key, rule.windowMs);
+
+    const count = await redis.zcard(key);
+    const oldest = count > rule.limit ? await redis.zrange(key, 0, 0, "WITHSCORES") : [];
+    const oldestTimestamp = Number(oldest[1] ?? now);
+    const retryAfter = count > rule.limit ? Math.max(0, Math.ceil((oldestTimestamp + rule.windowMs - now) / 1000)) : 0;
+    const resetAt = count > rule.limit ? oldestTimestamp + rule.windowMs : now + rule.windowMs;
+
     return {
       limited: count > rule.limit,
       limit: rule.limit,
       remaining: Math.max(0, rule.limit - count),
       retryAfter,
-      resetAt: new Date(now + ttlMs).toISOString()
+      resetAt: new Date(resetAt).toISOString()
     } satisfies RateLimitResult;
   }
 
   const current = memoryBuckets.get(key);
-  const { bucket, result } = applyFixedWindowLimit(current, rule, now);
+  const { bucket, result } = applySlidingWindowLimit(current, rule, now);
   memoryBuckets.set(key, bucket);
   return result;
 }

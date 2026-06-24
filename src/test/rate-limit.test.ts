@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyFixedWindowLimit, buildRateLimitKey, getClientIpIdentity, getRateLimitRule } from "@/lib/rate-limit";
+import { applySlidingWindowLimit, buildRateLimitKey, getClientIpIdentity, getRateLimitRule } from "@/lib/rate-limit";
 
 describe("rate limiting", () => {
   it("uses user-scoped action keys", () => {
@@ -28,12 +28,12 @@ describe("rate limiting", () => {
     expect(getClientIpIdentity(new Request("http://localhost/api"), "fallback")).toBe("ip:fallback");
   });
 
-  it("allows requests within the fixed window and blocks after the limit", () => {
+  it("allows requests within the sliding window and blocks after the limit", () => {
     const now = Date.parse("2026-06-21T12:00:00.000Z");
     const rule = { limit: 2, windowMs: 60_000 };
-    const first = applyFixedWindowLimit(undefined, rule, now);
-    const second = applyFixedWindowLimit(first.bucket, rule, now + 10_000);
-    const third = applyFixedWindowLimit(second.bucket, rule, now + 20_000);
+    const first = applySlidingWindowLimit(undefined, rule, now);
+    const second = applySlidingWindowLimit(first.bucket, rule, now + 10_000);
+    const third = applySlidingWindowLimit(second.bucket, rule, now + 20_000);
 
     expect(first.result.limited).toBe(false);
     expect(second.result.limited).toBe(false);
@@ -41,13 +41,26 @@ describe("rate limiting", () => {
     expect(third.result.retryAfter).toBe(40);
   });
 
-  it("resets the bucket after the window expires", () => {
+  it("keeps later requests active after the original window boundary", () => {
+    const now = Date.parse("2026-06-21T12:00:00.000Z");
+    const rule = { limit: 2, windowMs: 60_000 };
+    const first = applySlidingWindowLimit(undefined, rule, now);
+    const second = applySlidingWindowLimit(first.bucket, rule, now + 10_000);
+    const third = applySlidingWindowLimit(second.bucket, rule, now + 59_000);
+    const fourth = applySlidingWindowLimit(third.bucket, rule, now + 61_000);
+
+    expect(third.result.limited).toBe(true);
+    expect(fourth.result.limited).toBe(true);
+    expect(fourth.result.retryAfter).toBe(9);
+  });
+
+  it("allows requests after all previous entries leave the sliding window", () => {
     const now = Date.parse("2026-06-21T12:00:00.000Z");
     const rule = { limit: 1, windowMs: 60_000 };
-    const first = applyFixedWindowLimit(undefined, rule, now);
-    const second = applyFixedWindowLimit(first.bucket, rule, now + 60_000);
+    const first = applySlidingWindowLimit(undefined, rule, now);
+    const second = applySlidingWindowLimit(first.bucket, rule, now + 60_001);
 
     expect(second.result.limited).toBe(false);
-    expect(second.bucket.count).toBe(1);
+    expect(second.bucket.timestamps).toEqual([now + 60_001]);
   });
 });
