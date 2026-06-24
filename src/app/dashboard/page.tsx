@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/app-nav";
+import { GitHubQuotaNotice } from "@/components/github-quota-notice";
 import { IssueDiscoveryButton } from "@/components/issue-discovery-button";
 import { IssueCard } from "@/components/issue-card";
 import { MagneticLink } from "@/components/magnetic-button";
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
             <IssueDiscoveryButton />
           </div>
         </div>
+        <GitHubQuotaNotice quota={workspace.githubQuota} />
         <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
           <SkillCard profile={workspace.profile} />
           <section className="space-y-4">

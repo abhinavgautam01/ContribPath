@@ -1,6 +1,7 @@
 import { AppNav } from "@/components/app-nav";
 import { AccountDataActions } from "@/components/account-data-actions";
 import { Badge } from "@/components/badge";
+import { GitHubQuotaNotice } from "@/components/github-quota-notice";
 import { NotificationPreferencesPanel } from "@/components/notification-preferences-panel";
 import { getMissingProductionEnv, getRuntimeMode, hasCacheRedis, hasDatabase, hasGitHubOAuth, hasLlmProvider, hasQueueRedis } from "@/lib/env";
 import { getCurrentWorkspace } from "@/lib/workspace-data";
@@ -14,7 +15,7 @@ const envRows = [
 ] as const;
 
 export default async function SettingsPage() {
-  const { user } = await getCurrentWorkspace();
+  const { githubQuota, user } = await getCurrentWorkspace();
   return (
     <>
       <AppNav />
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
           <p className="font-mono text-xs uppercase tracking-wide text-accent-secondary">Settings</p>
           <h1 className="mt-2 font-display text-4xl font-bold tracking-tight">Connections and environment</h1>
         </div>
+        <GitHubQuotaNotice quota={githubQuota} />
         <section className="rounded-2xl border border-border-subtle bg-surface p-8">
           <h2 className="font-display text-2xl font-bold">Connected account</h2>
           <p className="mt-2 text-text-secondary">
