@@ -28,6 +28,11 @@ export function ProfileAnalyzeButton({ analyzedAt }: { analyzedAt: string }) {
       const response = await fetch("/api/v1/profile/analyze", { method: "POST" });
       if (!response.ok) throw new Error("Profile analysis failed");
       const payload = (await response.json()) as { jobId?: string; status?: string };
+      if (payload.status === "cached") {
+        setStatus("done");
+        startTransition(() => router.refresh());
+        return;
+      }
       setJobId(payload.jobId);
       setStatus("queued");
     } catch {

@@ -1,22 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { classifyGitHubError, githubErrorResponse } from "@/lib/github-errors";
+import { classifyGitHubError, githubErrorResponse, isGitHubPrimaryRateLimitError } from "@/lib/github-errors";
 
 describe("GitHub API error handling", () => {
   const now = Date.parse("2026-06-21T10:00:00.000Z");
 
   it("maps primary GitHub quota exhaustion to retryable rate limit details", () => {
-    const decision = classifyGitHubError(
-      {
-        status: 403,
-        response: {
-          headers: {
-            "x-ratelimit-remaining": "0",
-            "x-ratelimit-reset": String(Math.floor(now / 1000) + 120)
-          }
+    const error = {
+      status: 403,
+      response: {
+        headers: {
+          "x-ratelimit-remaining": "0",
+          "x-ratelimit-reset": String(Math.floor(now / 1000) + 120)
         }
-      },
-      now
-    );
+      }
+    };
+    const decision = classifyGitHubError(error, now);
 
     expect(decision).toEqual({
       handled: true,
@@ -26,6 +24,7 @@ describe("GitHub API error handling", () => {
       retryAfter: 120,
       retryAfterAt: "2026-06-21T10:02:00.000Z"
     });
+    expect(isGitHubPrimaryRateLimitError(error)).toBe(true);
   });
 
   it("maps secondary GitHub rate limits with retry-after headers", () => {

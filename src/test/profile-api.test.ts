@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveProfileGetResult } from "@/lib/profile-api";
+import { isFreshSkillProfile, resolveProfileGetResult } from "@/lib/profile-api";
 import type { SkillProfile } from "@/lib/types";
 
 const demoProfile: SkillProfile = {
@@ -36,5 +36,13 @@ describe("profile API decisions", () => {
       title: "Not Found",
       detail: "No analysis run yet. Run profile analysis first."
     });
+  });
+
+  it("detects cached profiles that are fresh enough for GitHub quota fallback", () => {
+    const now = Date.parse("2026-06-22T09:59:00.000Z");
+    expect(isFreshSkillProfile(demoProfile, now)).toBe(true);
+    expect(isFreshSkillProfile(demoProfile, Date.parse("2026-06-22T10:00:00.000Z"))).toBe(false);
+    expect(isFreshSkillProfile({ ...demoProfile, analyzedAt: "invalid" }, now)).toBe(false);
+    expect(isFreshSkillProfile({ ...demoProfile, analyzedAt: "2026-06-22T10:01:00.000Z" }, now)).toBe(false);
   });
 });

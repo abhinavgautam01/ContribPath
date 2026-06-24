@@ -1,9 +1,11 @@
 import { jobAccepted, json, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runProfileAnalysis, runProfileAnalysisForUser } from "@/lib/agents";
+import { getStoredSkillProfile } from "@/lib/db/app-data";
 import { hasQueueRedis } from "@/lib/env";
-import { githubErrorResponse } from "@/lib/github-errors";
+import { githubErrorResponse, isGitHubPrimaryRateLimitError } from "@/lib/github-errors";
 import { enforceSameOrigin } from "@/lib/origin-guard";
+import { isFreshSkillProfile } from "@/lib/profile-api";
 import { ProfileAnalysisBlockedError } from "@/lib/profile-analysis";
 import { buildAgentQueueJobId, enqueueAgentJob } from "@/lib/queue/jobs";
 import { findLatestJob } from "@/lib/store";
@@ -49,16 +51,33 @@ export async function POST(request: Request) {
       const job = await runProfileAnalysisForUser(userId!);
       return jobAccepted(job.id);
     } catch (error) {
-      return profileAnalysisErrorResponse(error);
+      return await profileAnalysisErrorResponse(error, userId);
     }
   }
   const job = await runProfileAnalysis();
   return jobAccepted(job.id);
 }
 
-function profileAnalysisErrorResponse(error: unknown) {
+async function profileAnalysisErrorResponse(error: unknown, userId: string | undefined) {
   if (error instanceof ProfileAnalysisBlockedError) {
     return problem(403, "Profile Analysis Blocked", error.message);
+  }
+  if (isGitHubPrimaryRateLimitError(error) && userId) {
+    const cachedProfile = await getStoredSkillProfile(userId);
+    if (isFreshSkillProfile(cachedProfile)) {
+      return json(
+        {
+          status: "cached",
+          profile: cachedProfile,
+          detail: "GitHub API quota exhausted; returning the cached profile analyzed in the last 24 hours."
+        },
+        {
+          headers: {
+            "X-ContribPath-Cache": "skill-profile"
+          }
+        }
+      );
+    }
   }
   const githubResponse = githubErrorResponse(error);
   if (githubResponse) return githubResponse;

@@ -97,6 +97,12 @@ export function classifyGitHubError(error: unknown, now = Date.now()): GitHubErr
   return { handled: false };
 }
 
+export function isGitHubPrimaryRateLimitError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const githubError = error as GitHubErrorLike;
+  return githubError.status === 403 && String(headerValue(githubError.response?.headers, "x-ratelimit-remaining")) === "0";
+}
+
 export function githubErrorResponse(error: unknown) {
   const decision = classifyGitHubError(error);
   if (!decision.handled) return null;
