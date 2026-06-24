@@ -2,9 +2,11 @@ import { Worker } from "bullmq";
 import type { RedisOptions } from "ioredis";
 import { runIssueDiscovery, runIssueDiscoveryForUser, runPlanner, runPlannerForUser, runProfileAnalysis, runProfileAnalysisForUser } from "@/lib/agents";
 import { getStoredIssue } from "@/lib/db/app-data";
+import { queuedAgentJobCompletionPatch, queuedAgentJobFailurePatch, updateQueuedAgentJob } from "@/lib/db/job-data";
 import type { DiscoveryPreferencePatch } from "@/lib/discovery-preferences";
 import { findIssue } from "@/lib/store";
 import { getQueueRedis } from "@/lib/queue/redis";
+import type { AgentJob } from "@/lib/types";
 
 const connection = getQueueRedis();
 
@@ -45,10 +47,18 @@ const worker = new Worker(
   { connection: connection as unknown as RedisOptions }
 );
 
-worker.on("completed", (job) => {
+function isAgentJob(value: unknown): value is AgentJob {
+  return typeof value === "object" && value !== null && "status" in value && "type" in value && "createdAt" in value;
+}
+
+worker.on("completed", async (job, result) => {
+  if (isAgentJob(result)) {
+    await updateQueuedAgentJob(job.id, queuedAgentJobCompletionPatch(result));
+  }
   console.log(JSON.stringify({ level: "info", jobId: job.id, status: "completed" }));
 });
 
-worker.on("failed", (job, error) => {
+worker.on("failed", async (job, error) => {
+  await updateQueuedAgentJob(job?.id, queuedAgentJobFailurePatch(error));
   console.error(JSON.stringify({ level: "error", jobId: job?.id, status: "failed", error: error.message }));
 });

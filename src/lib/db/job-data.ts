@@ -61,6 +61,35 @@ export function accountDeletionJobCancellationPatch(completedAt = new Date()) {
   };
 }
 
+export function queuedAgentJobCompletionPatch(job: AgentJob) {
+  return {
+    status: "done",
+    resultId: uuidResultId(job.resultId),
+    error: null,
+    startedAt: new Date(job.createdAt),
+    completedAt: job.completedAt ? new Date(job.completedAt) : new Date()
+  };
+}
+
+export function queuedAgentJobFailurePatch(error: Error, completedAt = new Date()) {
+  return {
+    status: "failed",
+    error: error.message,
+    completedAt
+  };
+}
+
+export async function updateQueuedAgentJob(queueJobId: string | number | undefined | null, patch: ReturnType<typeof queuedAgentJobCompletionPatch> | ReturnType<typeof queuedAgentJobFailurePatch>) {
+  const db = getDb();
+  if (!db || queueJobId == null) return 0;
+  const rows = await db
+    .update(agentJobs)
+    .set(patch)
+    .where(and(eq(agentJobs.queueJobId, String(queueJobId)), inArray(agentJobs.status, [...inFlightJobStatuses])))
+    .returning({ id: agentJobs.id });
+  return rows.length;
+}
+
 export async function markUserInFlightJobsCancelled(userId: string, completedAt = new Date()) {
   const db = getDb();
   if (!db) return 0;
