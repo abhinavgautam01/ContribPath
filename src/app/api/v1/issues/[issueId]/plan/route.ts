@@ -4,6 +4,7 @@ import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runPlanner, runPlannerForUser } from "@/lib/agents";
 import { getStoredIssue, getStoredPlan } from "@/lib/db/app-data";
 import { hasQueueRedis } from "@/lib/env";
+import { githubErrorResponse } from "@/lib/github-errors";
 import { hasIssueExplanation } from "@/lib/issue-workflow";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { enqueueAgentJob } from "@/lib/queue/jobs";
@@ -41,8 +42,14 @@ export async function POST(request: Request, { params }: RouteContext) {
       const queued = await enqueueAgentJob("plan", { userId: realUserId, issueId: storedIssue.id });
       if (queued) return jobAccepted(String(queued.id));
     }
-    const job = await runPlannerForUser(realUserId!, storedIssue);
-    return jobAccepted(job.id);
+    try {
+      const job = await runPlannerForUser(realUserId!, storedIssue);
+      return jobAccepted(job.id);
+    } catch (error) {
+      const githubResponse = githubErrorResponse(error);
+      if (githubResponse) return githubResponse;
+      throw error;
+    }
   }
   if (!issue) return problem(404, "Not Found", "Issue not found for this user.");
   const existingPlan = getState().plans[issue.id];

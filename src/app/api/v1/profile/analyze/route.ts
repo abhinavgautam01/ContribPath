@@ -2,6 +2,7 @@ import { jobAccepted, json, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runProfileAnalysis, runProfileAnalysisForUser } from "@/lib/agents";
 import { hasQueueRedis } from "@/lib/env";
+import { githubErrorResponse } from "@/lib/github-errors";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { ProfileAnalysisBlockedError } from "@/lib/profile-analysis";
 import { buildAgentQueueJobId, enqueueAgentJob } from "@/lib/queue/jobs";
@@ -59,5 +60,7 @@ function profileAnalysisErrorResponse(error: unknown) {
   if (error instanceof ProfileAnalysisBlockedError) {
     return problem(403, "Profile Analysis Blocked", error.message);
   }
+  const githubResponse = githubErrorResponse(error);
+  if (githubResponse) return githubResponse;
   throw error;
 }

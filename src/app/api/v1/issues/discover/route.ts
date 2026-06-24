@@ -4,6 +4,7 @@ import { runIssueDiscovery, runIssueDiscoveryForUser } from "@/lib/agents";
 import { getStoredSkillProfile } from "@/lib/db/app-data";
 import { isProfileExpired, normalizeDiscoveryLanguages } from "@/lib/discovery-preferences";
 import { hasQueueRedis } from "@/lib/env";
+import { githubErrorResponse } from "@/lib/github-errors";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { enqueueAgentJob } from "@/lib/queue/jobs";
 import { z } from "zod";
@@ -40,8 +41,14 @@ export async function POST(request: Request) {
     if (queued) return jobAccepted(String(queued.id));
   }
   if (isRealUser) {
-    const job = await runIssueDiscoveryForUser(userId!, preferences);
-    return jobAccepted(job.id);
+    try {
+      const job = await runIssueDiscoveryForUser(userId!, preferences);
+      return jobAccepted(job.id);
+    } catch (error) {
+      const githubResponse = githubErrorResponse(error);
+      if (githubResponse) return githubResponse;
+      throw error;
+    }
   }
   const job = await runIssueDiscovery(preferences);
   return jobAccepted(job.id);

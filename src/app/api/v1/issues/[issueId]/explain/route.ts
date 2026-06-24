@@ -2,6 +2,7 @@ import { jobAccepted, problem } from "@/lib/api";
 import { enforceRateLimit } from "@/lib/api-rate-limit";
 import { runIssueExplanation, runIssueExplanationForUser } from "@/lib/agents";
 import { getStoredIssue } from "@/lib/db/app-data";
+import { githubErrorResponse } from "@/lib/github-errors";
 import { getIssueExplanationCooldown } from "@/lib/issue-workflow";
 import { enforceSameOrigin } from "@/lib/origin-guard";
 import { findIssue } from "@/lib/store";
@@ -28,8 +29,14 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (storedIssue) {
     const cooldown = getIssueExplanationCooldown(storedIssue);
     if (cooldown.coolingDown) return explanationCooldownProblem(cooldown);
-    const job = await runIssueExplanationForUser(realUserId!, storedIssue);
-    return jobAccepted(job.id);
+    try {
+      const job = await runIssueExplanationForUser(realUserId!, storedIssue);
+      return jobAccepted(job.id);
+    } catch (error) {
+      const githubResponse = githubErrorResponse(error);
+      if (githubResponse) return githubResponse;
+      throw error;
+    }
   }
   const issue = findIssue(issueId);
   if (!issue) return problem(404, "Not Found", "Issue not in user's discovered list.");
