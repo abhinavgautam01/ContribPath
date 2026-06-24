@@ -19,6 +19,8 @@ const generatedFilePatterns = [/\.min\.[cm]?js$/i, /\.generated\./i, /(^|\/)pack
 const bazelWorkspaceFiles = new Set(["WORKSPACE", "WORKSPACE.bazel", "MODULE.bazel"]);
 const bazelBuildFilePattern = /(^|\/)(BUILD|BUILD\.bazel)$/;
 const contributionGuidePattern = /(^|\/)(CONTRIBUTING|CONTRIBUTING\.md|docs\/CONTRIBUTING\.md)$/i;
+const testSuitePathPattern =
+  /(^|\/)(__tests__|tests?|spec)(\/|$)|(\.|_)(test|spec)\.(tsx?|jsx?|py|go|rs)$|(^|\/)(vitest|jest|pytest|tox|go|Cargo)\.(config\.)?(ts|js|toml|ini|mod|lock)$/i;
 
 export type CodebaseNavigationResult = {
   likelyFiles: LikelyFile[];
@@ -74,9 +76,14 @@ export function repositoryBuildSystemGotchas(treePaths: string[]) {
   return gotchas;
 }
 
+export function repositoryTestSuiteGotchas(treePaths: string[]) {
+  const hasTestSuite = treePaths.some((path) => testSuitePathPattern.test(path));
+  return hasTestSuite ? [] : ["No tests found. Check if maintainers accept PRs without tests, or ask in the issue."];
+}
+
 export function validateLikelyFilesAgainstTree(issue: Issue, treePaths: string[]): CodebaseNavigationResult {
   const availablePaths = new Set(capTreePathsForNavigation(treePaths, issue.likelyFiles));
-  const gotchas = [...issue.issueContext.gotchas, ...repositoryBuildSystemGotchas(treePaths)];
+  const gotchas = [...issue.issueContext.gotchas, ...repositoryBuildSystemGotchas(treePaths), ...repositoryTestSuiteGotchas(treePaths)];
   const likelyFiles: LikelyFile[] = [];
   let stale = false;
 

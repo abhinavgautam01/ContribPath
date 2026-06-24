@@ -3,6 +3,7 @@ import {
   annotateLikelyFilesWithNavigationHints,
   capTreePathsForNavigation,
   repositoryBuildSystemGotchas,
+  repositoryTestSuiteGotchas,
   skippedFileContentGotchas,
   validateLikelyFilesAgainstTree
 } from "@/lib/codebase-navigation";
@@ -112,5 +113,13 @@ describe("codebase navigation", () => {
       "Bazel build files detected; read CONTRIBUTING.md before changing build targets."
     ]);
     expect(repositoryBuildSystemGotchas(["src/app.ts"])).toEqual([]);
+  });
+
+  it("notes when repository tree inspection finds no test suite", () => {
+    expect(repositoryTestSuiteGotchas(["src/app.ts", "README.md"])).toEqual([
+      "No tests found. Check if maintainers accept PRs without tests, or ask in the issue."
+    ]);
+    expect(repositoryTestSuiteGotchas(["src/app.test.ts", "README.md"])).toEqual([]);
+    expect(repositoryTestSuiteGotchas(["tests/integration_test.go", "go.mod"])).toEqual([]);
   });
 });
