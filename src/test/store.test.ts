@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { applyIssueExplanation, completeJob, createJob, findIssue, findLatestInFlightJob, findLatestJob, resetStateForTests } from "@/lib/store";
+import { applyIssueExplanation, completeJob, createJob, failJob, findIssue, findLatestInFlightJob, findLatestJob, resetStateForTests } from "@/lib/store";
 
 describe("store jobs", () => {
   afterEach(() => {
@@ -30,6 +30,16 @@ describe("store jobs", () => {
     const active = createJob("issue_discovery", "Discovering issues");
 
     expect(findLatestInFlightJob()?.id).toBe(active.id);
+  });
+
+  it("marks jobs as failed with a terminal error", () => {
+    const job = createJob("plan", "Queued");
+    const failed = failJob(job.id, "Agent step timed out");
+
+    expect(failed.status).toBe("failed");
+    expect(failed.progress).toBe(1);
+    expect(failed.error).toBe("Agent step timed out");
+    expect(failed.completedAt).toBeDefined();
   });
 
   it("applies parsed issue explanation fields to demo state", () => {

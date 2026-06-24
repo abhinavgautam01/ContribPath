@@ -75,6 +75,19 @@ export function setJobRunning(jobId: string, stage: string, progress: number): A
   return job;
 }
 
+export function failJob(jobId: string, error: string): AgentJob {
+  const job = state().jobs[jobId];
+  if (!job) {
+    throw new Error(`Job not found: ${jobId}`);
+  }
+  job.status = "failed";
+  job.stage = error;
+  job.progress = 1;
+  job.error = error;
+  job.completedAt = new Date().toISOString();
+  return job;
+}
+
 export function findIssue(issueId: string): Issue | undefined {
   return state().issues.find((issue) => issue.id === issueId);
 }
