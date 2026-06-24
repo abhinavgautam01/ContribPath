@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { expiresAtFromAccount, normalizeGitHubProfile } from "@/lib/auth/oauth-persistence";
+import {
+  expiredProfilePatchForUsernameChange,
+  expiresAtFromAccount,
+  hasGitHubUsernameChanged,
+  normalizeGitHubProfile
+} from "@/lib/auth/oauth-persistence";
 
 describe("OAuth persistence helpers", () => {
   it("normalizes GitHub profile fields for the local users table", () => {
@@ -35,5 +40,16 @@ describe("OAuth persistence helpers", () => {
     });
 
     expect(date?.toISOString()).toBe("2026-06-21T13:20:00.000Z");
+  });
+
+  it("detects GitHub username changes for profile invalidation", () => {
+    expect(hasGitHubUsernameChanged("octo-dev", "octo-renamed")).toBe(true);
+    expect(hasGitHubUsernameChanged("octo-dev", "octo-dev")).toBe(false);
+    expect(hasGitHubUsernameChanged(null, "octo-dev")).toBe(false);
+    expect(hasGitHubUsernameChanged(undefined, "octo-dev")).toBe(false);
+  });
+
+  it("expires stored skill profiles when a username change requires re-analysis", () => {
+    expect(expiredProfilePatchForUsernameChange().expiresAt.toISOString()).toBe("1970-01-01T00:00:00.000Z");
   });
 });

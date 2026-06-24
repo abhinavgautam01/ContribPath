@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Account, Profile, User } from "next-auth";
 import { getDb } from "@/lib/db/client";
-import { oauthAccounts, users } from "@/lib/db/schema";
+import { oauthAccounts, skillProfiles, users } from "@/lib/db/schema";
 import { hasDatabase, hasTokenEncryption } from "@/lib/env";
 import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
 
@@ -22,6 +22,7 @@ export interface OAuthPersistenceResult {
   persisted: boolean;
   userId?: string;
   skippedReason?: string;
+  profileInvalidated?: boolean;
 }
 
 export function normalizeGitHubProfile(profile: Profile | GitHubProfileLike | undefined, user: User) {
@@ -36,6 +37,14 @@ export function normalizeGitHubProfile(profile: Profile | GitHubProfileLike | un
 
 export function expiresAtFromAccount(account: Account) {
   return typeof account.expires_at === "number" ? new Date(account.expires_at * 1000) : null;
+}
+
+export function hasGitHubUsernameChanged(previousLogin: string | null | undefined, nextLogin: string) {
+  return Boolean(previousLogin && previousLogin !== nextLogin);
+}
+
+export function expiredProfilePatchForUsernameChange() {
+  return { expiresAt: new Date(0) };
 }
 
 export async function persistGitHubOAuthAccount(input: OAuthPersistenceInput): Promise<OAuthPersistenceResult> {
@@ -58,6 +67,13 @@ export async function persistGitHubOAuthAccount(input: OAuthPersistenceInput): P
   }
 
   const normalized = normalizeGitHubProfile(input.profile, input.user);
+  const [existingUser] = await db
+    .select({ id: users.id, githubLogin: users.githubLogin })
+    .from(users)
+    .where(eq(users.githubId, normalized.githubId))
+    .limit(1);
+  const profileInvalidated = hasGitHubUsernameChanged(existingUser?.githubLogin, normalized.githubLogin);
+
   const [savedUser] = await db
     .insert(users)
     .values({
@@ -108,7 +124,11 @@ export async function persistGitHubOAuthAccount(input: OAuthPersistenceInput): P
     });
 
   await db.update(users).set({ updatedAt: new Date() }).where(eq(users.id, savedUser.id));
-  return { persisted: true, userId: savedUser.id };
+  if (profileInvalidated) {
+    await db.update(skillProfiles).set(expiredProfilePatchForUsernameChange()).where(eq(skillProfiles.userId, savedUser.id));
+  }
+
+  return { persisted: true, userId: savedUser.id, profileInvalidated };
 }
 
 export async function getUserIdByGitHubId(githubId: string | number | null | undefined) {
