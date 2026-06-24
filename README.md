@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License" />
 </p>
 
-<h1 align="center">🚀 ContribPath</h1>
+<h1 align="center">ContribPath</h1>
 
 <p align="center">
   <strong>From zero to first PR in under an hour.</strong>
@@ -16,18 +16,18 @@
 </p>
 
 <p align="center">
-  <a href="#-features">Features</a> •
-  <a href="#%EF%B8%8F-architecture">Architecture</a> •
-  <a href="#-tech-stack">Tech Stack</a> •
-  <a href="#-getting-started">Getting Started</a> •
-  <a href="#-project-structure">Project Structure</a> •
-  <a href="#-api-reference">API Reference</a> •
-  <a href="#-contributing">Contributing</a>
+  <a href="#features">Features</a> •
+  <a href="#architecture">Architecture</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#project-structure">Project Structure</a> •
+  <a href="#api-reference">API Reference</a> •
+  <a href="#contributing">Contributing</a>
 </p>
 
 ---
 
-## 🎯 The Problem
+## The Problem
 
 Getting started with open source contributions is **hard**. New contributors face a brutal onboarding curve:
 
@@ -41,108 +41,113 @@ Getting started with open source contributions is **hard**. New contributors fac
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔍 Intelligent Skill Analysis
+### Intelligent Skill Analysis
 Sign in with GitHub and the AI agent pipeline automatically analyzes your public profile — languages, frameworks, merged PRs, and domain expertise — to build a personalized developer profile.
 
-### 🎯 Personalized Issue Discovery
+### Personalized Issue Discovery
 Discover open source issues tailored to your skills. Repos are filtered for activity, community health, and maintainer responsiveness. No more wasting time on dead projects or already-claimed issues.
 
-### 🧠 AI-Powered Issue Explanations
+### AI-Powered Issue Explanations
 For every issue, get a plain-English breakdown: what the problem is, which files are involved, potential gotchas, and what to clarify with the maintainer before starting.
 
-### 📋 Step-by-Step Implementation Plans
+### Step-by-Step Implementation Plans
 Generate a numbered implementation plan with specific file pointers, test commands, and local setup instructions — like a senior developer pair programming with you.
 
-### 📝 PR Draft Generator
+### PR Draft Generator
 Auto-generate PR titles and descriptions following the project's conventions, including conventional commits detection and `PULL_REQUEST_TEMPLATE.md` adaptation.
 
-### 🏥 Repository Health Scoring
+### Repository Health Scoring
 Every recommended repo is scored on a 0–100 scale across 4 dimensions: commit recency, PR merge time, issue response time, and issue close rate.
 
-### 💾 Issue Management
+### Issue Management
 Save issues for later, dismiss irrelevant ones, filter by difficulty/language/repo, and track your progress through implementation plans with interactive checklists.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### High-Level System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Browser (Next.js SSR)                     │
-│  Landing Page │ Dashboard │ Issue Explorer │ Plan View        │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ HTTPS / REST
-┌──────────────────────────────▼──────────────────────────────┐
-│                   Next.js API Routes (BFF)                    │
-│  /api/auth/*  /api/v1/profile  /api/v1/issues  /api/v1/plan  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-            ┌──────────────────┼───────────────────┐
-            │                  │                   │
-  ┌─────────▼────────┐ ┌──────▼───────┐ ┌─────────▼────────┐
-  │ Agent Orchestrator│ │ GitHub API   │ │ LLM Gateway      │
-  │ (BullMQ Workers)  │ │ (Octokit)    │ │ (Claude / OpenAI)│
-  └────────┬─────────┘ └──────────────┘ └──────────────────┘
-           │
-  ┌────────▼──────────────────────────────────────────┐
-  │               Agent Pipeline (7 Agents)            │
-  │  Skill Analysis → Repo Discovery → Health Scoring  │
-  │  → Issue Understanding → Codebase Navigation       │
-  │  → Implementation Planner → PR Draft               │
-  └────────┬──────────────────────────────────────────┘
-           │
-  ┌────────▼─────────────┐     ┌──────────────────┐
-  │  PostgreSQL (Drizzle) │     │  Redis            │
-  │  Users, Profiles,     │     │  Cache + BullMQ   │
-  │  Issues, Plans, Jobs  │     │  Rate Limiting     │
-  └───────────────────────┘     └──────────────────┘
+```mermaid
+classDiagram
+    class Browser {
+        <<Next.js SSR>>
+        +Landing Page
+        +Dashboard
+        +Issue Explorer
+        +Plan View
+    }
+
+    class APIRoutes {
+        <<BFF>>
+        +/api/auth/*
+        +/api/v1/profile
+        +/api/v1/issues
+        +/api/v1/plan
+    }
+
+    class AgentOrchestrator {
+        <<BullMQ Workers>>
+    }
+
+    class GitHubAPI {
+        <<Octokit>>
+    }
+
+    class LLMGateway {
+        <<Claude / OpenAI>>
+    }
+
+    class AgentPipeline {
+        <<7 Agents>>
+        +Skill Analysis
+        +Repo Discovery
+        +Health Scoring
+        +Issue Understanding
+        +Codebase Navigation
+        +Implementation Planner
+        +PR Draft
+    }
+
+    class PostgreSQL {
+        <<Drizzle>>
+        +Users, Profiles
+        +Issues, Plans, Jobs
+    }
+
+    class Redis {
+        <<Cache + BullMQ>>
+        +Rate Limiting
+    }
+
+    Browser --> APIRoutes : HTTPS / REST
+    APIRoutes --> AgentOrchestrator
+    APIRoutes --> GitHubAPI
+    APIRoutes --> LLMGateway
+    AgentOrchestrator --> AgentPipeline
+    AgentPipeline --> PostgreSQL
+    AgentPipeline --> Redis
 ```
 
 ### Multi-Agent Pipeline
 
 The core intelligence of ContribPath is a **7-agent pipeline** where each agent is a stateless TypeScript function that reads from and writes to a shared `AgentContext`. Jobs are managed by BullMQ for reliability and retries.
 
-```
-                    ┌──────────────────────┐
-                    │  1. Skill Analysis   │
-                    │     Agent            │
-                    └──────────┬───────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              │                                 │
-   ┌──────────▼──────────┐          ┌───────────▼───────────┐
-   │  2. Repository      │          │  3. Maintainer        │
-   │     Discovery Agent │          │     Activity Agent    │
-   └──────────┬──────────┘          └───────────┬───────────┘
-              │                                 │
-              └────────────────┬────────────────┘
-                               │  merge & rank
-                    ┌──────────▼───────────┐
-                    │  4. Issue            │
-                    │     Understanding    │
-                    │     Agent (LLM)      │
-                    └──────────┬───────────┘
-                               │
-                    ┌──────────▼───────────┐
-                    │  5. Codebase         │
-                    │     Navigation       │
-                    │     Agent (LLM)      │
-                    └──────────┬───────────┘
-                               │
-                    ┌──────────▼───────────┐
-                    │  6. Implementation   │
-                    │     Planner          │
-                    │     Agent (LLM)      │
-                    └──────────┬───────────┘
-                               │
-                    ┌──────────▼───────────┐
-                    │  7. PR Draft         │
-                    │     Agent (LLM)      │
-                    └──────────────────────┘
+```mermaid
+flowchart TD
+    A["Skill Analysis\nAgent"] -->|SkillProfile| B["Repository\nDiscovery Agent"]
+    A -->|Repo List| C["Maintainer\nActivity Agent"]
+    
+    B -->|Ranked Repos| D["Issue\nUnderstanding\nAgent (LLM)"]
+    C -->|Health Scores| D
+    
+    D -->|Issue Context| E["Codebase\nNavigation\nAgent (LLM)"]
+    
+    E -->|File Pointers| F["Implementation\nPlanner\nAgent (LLM)"]
+    
+    F -->|Step-by-Step Plan| G["PR Draft\nAgent (LLM)"]
 ```
 
 | Agent | Input | Output | Method |
@@ -168,25 +173,17 @@ Each discovered repository gets a composite health score:
 
 ### Authentication Flow
 
-```
-User clicks "Sign in with GitHub"
-        │
-        ▼
-GitHub OAuth (scopes: read:user, read:org)
-        │
-        ▼
-Callback → NextAuth creates DB session
-        │
-        ▼
-GitHub token encrypted (AES-256-GCM) → stored in DB
-        │
-        ▼
-HttpOnly session cookie → browser (token never exposed to client)
+```mermaid
+flowchart TD
+    A["User clicks 'Sign in with GitHub'"] --> B["GitHub OAuth\n(scopes: read:user, read:org)"]
+    B --> C["Callback → NextAuth creates DB session"]
+    C --> D["GitHub token encrypted (AES-256-GCM) → stored in DB"]
+    D --> E["HttpOnly session cookie → browser\n(token never exposed to client)"]
 ```
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
@@ -210,7 +207,7 @@ HttpOnly session cookie → browser (token never exposed to client)
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -303,7 +300,7 @@ The app will be running at **http://localhost:3000**.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 contribpath/
@@ -384,7 +381,7 @@ contribpath/
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 All product endpoints are under `/api/v1/` and require session authentication.
 
@@ -435,7 +432,7 @@ All product endpoints are under `/api/v1/` and require session authentication.
 
 ---
 
-## 🔐 Security
+## Security
 
 ContribPath implements defense-in-depth security:
 
@@ -454,7 +451,7 @@ ContribPath implements defense-in-depth security:
 
 ---
 
-## 🎨 Design System
+## Design System
 
 ContribPath uses a bespoke **"Obsidian & Neon"** design language — a premium, cinematic dark mode with depth-driven UI:
 
@@ -469,7 +466,7 @@ ContribPath uses a bespoke **"Obsidian & Neon"** design language — a premium, 
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -494,7 +491,7 @@ Test coverage includes:
 
 ---
 
-## 🚢 Deployment
+## Deployment
 
 ### Recommended Architecture
 
@@ -515,9 +512,9 @@ Test coverage includes:
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
-### ✅ MVP (Current)
+### MVP (Current)
 - [x] GitHub OAuth login
 - [x] Skill analysis from public GitHub data
 - [x] Personalized issue discovery
@@ -527,7 +524,7 @@ Test coverage includes:
 - [x] Repository health scoring
 - [x] Persistent sessions with saved issues
 
-### 🔮 Phase 2 (Planned)
+### Phase 2 (Planned)
 - [ ] Autonomous branch creation & draft implementation via GitHub API
 - [ ] GitLab and Bitbucket integration
 - [ ] Portfolio website parsing for non-GitHub skills
@@ -537,7 +534,7 @@ Test coverage includes:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Here's how to get started:
 
@@ -547,7 +544,7 @@ We welcome contributions! Here's how to get started:
 4. **Push** to the branch: `git push origin feat/your-feature`
 5. **Open** a Pull Request
 
-> **Ironically, you can use ContribPath itself to find issues to work on in this repo! 🔄**
+> **Ironically, you can use ContribPath itself to find issues to work on in this repo!**
 
 ### Development Scripts
 
@@ -565,14 +562,14 @@ pnpm db:migrate       # Run database migrations
 
 ---
 
-## 📄 License
+## License
 
 This project is open source. See the [LICENSE](./LICENSE) file for details.
 
 ---
 
 <p align="center">
-  <strong>Built with ❤️ to make open source accessible to everyone.</strong>
+  <strong>Built to make open source accessible to everyone.</strong>
   <br />
   <sub>Stop scrolling through GitHub. Start contributing.</sub>
 </p>
