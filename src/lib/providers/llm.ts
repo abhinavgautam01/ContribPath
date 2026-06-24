@@ -25,7 +25,7 @@ export function createLlmProvider(): LlmProvider {
 
 function buildIssueExplanationPrompt(issueContent: string, retry: boolean) {
   const retryInstruction = retry ? "The previous response was invalid JSON. Retry with a single valid JSON object only.\n" : "";
-  return `${retryInstruction}Summarise this GitHub issue for a new contributor. Return JSON with problem, context, likely_files, time_estimate_mins, difficulty, gotchas, questions_to_ask, and type.\n${issueContent}`;
+  return `${retryInstruction}Summarise this GitHub issue for a new contributor. Return JSON with problem, context, likely_files, time_estimate_mins, difficulty, gotchas, questions_to_ask, type, and original_language when the source issue is not English. Always write problem and context in English.\n${issueContent}`;
 }
 
 function createAnthropicProvider(): LlmProvider {
@@ -124,6 +124,10 @@ function positiveMinutes(value: unknown) {
   return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : undefined;
 }
 
+function issueType(value: unknown, fallback: IssueContext["type"]) {
+  return value === "bug" || value === "feature" || value === "docs" || value === "maintenance" ? value : fallback;
+}
+
 export function parseIssueExplanation(text: string, issue: Issue): IssueExplanationResult {
   const parsed = parseIssueExplanationJson(text, issue);
   if (parsed) return parsed;
@@ -142,14 +146,15 @@ function parseIssueExplanationJson(text: string, issue: Issue): IssueExplanation
     const likelyFiles = normalizeLikelyFiles(parsed.likelyFiles ?? parsed.likely_files);
     const timeEstimateMins = positiveMinutes(parsed.timeEstimateMins ?? parsed.time_estimate_mins);
     const difficulty = isDifficulty(parsed.difficulty) ? parsed.difficulty : undefined;
+    const originalLanguage = parsed.originalLanguage ?? parsed.original_language;
     return {
       issueContext: {
         problem: typeof parsed.problem === "string" && parsed.problem ? parsed.problem : issue.issueContext.problem || issue.title,
         context: typeof parsed.context === "string" && parsed.context ? parsed.context : issue.issueContext.context || "No additional context returned.",
         gotchas: Array.isArray(parsed.gotchas) ? parsed.gotchas.filter((gotcha): gotcha is string => typeof gotcha === "string") : issue.issueContext.gotchas,
         questionsToAsk: Array.isArray(questionsToAsk) ? questionsToAsk.filter((question): question is string => typeof question === "string") : issue.issueContext.questionsToAsk,
-        type: parsed.type || issue.issueContext.type || "maintenance",
-        originalLanguage: typeof parsed.originalLanguage === "string" ? parsed.originalLanguage : undefined,
+        type: issueType(parsed.type, issue.issueContext.type || "maintenance"),
+        originalLanguage: typeof originalLanguage === "string" && originalLanguage.trim() ? originalLanguage.trim() : undefined,
         stale: typeof parsed.stale === "boolean" ? parsed.stale : undefined
       },
       likelyFiles,

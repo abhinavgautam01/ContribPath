@@ -14,7 +14,8 @@ describe("LLM issue explanation parsing", () => {
         difficulty: "Beginner",
         gotchas: ["Check snapshots."],
         questions_to_ask: ["Count or list notes?"],
-        type: "bug"
+        type: "bug",
+        original_language: "Spanish"
       }),
       issue
     );
@@ -24,7 +25,8 @@ describe("LLM issue explanation parsing", () => {
       context: "Notes already exist in storage.",
       gotchas: ["Check snapshots."],
       questionsToAsk: ["Count or list notes?"],
-      type: "bug"
+      type: "bug",
+      originalLanguage: "Spanish"
     });
     expect(explanation.likelyFiles).toEqual([{ path: "cmd/info.go", reason: "Owns info output." }]);
     expect(explanation.timeEstimateMins).toBe(35);
@@ -102,5 +104,19 @@ describe("LLM issue explanation parsing", () => {
     expect(explanation.likelyFiles).toBeUndefined();
     expect(explanation.timeEstimateMins).toBeUndefined();
     expect(explanation.difficulty).toBeUndefined();
+  });
+
+  it("normalizes invalid issue types back to the existing context type", () => {
+    const issue = createInitialState().issues[0];
+    const explanation = parseIssueExplanation(
+      JSON.stringify({
+        problem: "Problem",
+        context: "Context",
+        type: "exploit"
+      }),
+      issue
+    );
+
+    expect(explanation.issueContext.type).toBe(issue.issueContext.type);
   });
 });
