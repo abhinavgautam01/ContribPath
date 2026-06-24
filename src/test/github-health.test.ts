@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRepoHealth,
   daysBetween,
+  maintainerHealthNotes,
   median,
   scoreDaysSinceLastCommit,
   scoreIssueResponseDays,
@@ -38,6 +39,19 @@ describe("github health scoring", () => {
   it("uses neutral unknown scoring when a signal cannot be measured", () => {
     expect(aggregateRepoHealth({}).healthScore).toBe(50);
     expect(unknownRepoHealth().healthBreakdown.notes?.[0]).toContain("neutral score");
+  });
+
+  it("builds maintainer health notes for SPEC edge cases", () => {
+    expect(maintainerHealthNotes({ mergeSampleCount: 0, issueResponseSampleCount: 0 })).toEqual([
+      "No recent merged PRs; PR merge signal uses neutral score.",
+      "No recent issue response samples; response signal uses neutral score."
+    ]);
+    expect(maintainerHealthNotes({ mergeSampleCount: 5, issueResponseSampleCount: 3, contributorCount: 1 })).toContain(
+      "Solo Maintainer: recent activity appears to come from one contributor."
+    );
+    expect(maintainerHealthNotes({ mergeSampleCount: 5, issueResponseSampleCount: 3, commitHistoryUnavailable: true })).toContain(
+      "Commit history unavailable; repository may have been recently transferred."
+    );
   });
 
   it("calculates medians and day differences defensively", () => {

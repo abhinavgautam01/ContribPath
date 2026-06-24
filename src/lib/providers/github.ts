@@ -1,6 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import type { CodebaseNavigationFileContent } from "@/lib/codebase-navigation";
-import { aggregateRepoHealth, daysBetween, median, unknownRepoHealth } from "@/lib/github-health";
+import { aggregateRepoHealth, daysBetween, maintainerHealthNotes, median, unknownRepoHealth } from "@/lib/github-health";
 import { extractReferencedIssueNumbersFromDiscussion, type IssueDiscussion } from "@/lib/issue-discussion";
 import { calculateFinalRepoScore, calculateSkillMatchScore, sortRepositoriesByFinalScore } from "@/lib/repo-ranking";
 import type { Difficulty, Issue, Repository, SkillProfile } from "@/lib/types";
@@ -272,9 +272,14 @@ async function fetchRepositoryHealth(octokit: Octokit, owner: string, repo: stri
   const now = new Date();
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-  const commits = await octokit.repos.listCommits({ owner, repo, per_page: 1 }).catch(() => ({ data: [] }));
+  const commits = await octokit.repos.listCommits({ owner, repo, per_page: 20 }).catch(() => ({ data: [] }));
   const lastCommitDate = commits.data[0]?.commit?.committer?.date ?? commits.data[0]?.commit?.author?.date ?? null;
   const daysSinceLastCommit = lastCommitDate ? daysBetween(lastCommitDate, now) : null;
+  const commitAuthors = new Set(
+    commits.data
+      .map((commit) => commit.author?.login ?? commit.committer?.login ?? commit.commit?.author?.email ?? commit.commit?.committer?.email)
+      .filter((value): value is string => Boolean(value))
+  );
 
   const pullRequests = await octokit.pulls.list({ owner, repo, state: "closed", sort: "updated", direction: "desc", per_page: 20 }).catch(() => ({ data: [] }));
   const mergeDurations = pullRequests.data
@@ -299,11 +304,13 @@ async function fetchRepositoryHealth(octokit: Octokit, owner: string, repo: stri
     })
   );
 
-  const notes: string[] = [];
-  if (!mergeDurations.length) notes.push("No recent merged PRs; PR merge signal uses neutral score.");
-  if (!responseDurations.some((value): value is number => typeof value === "number")) {
-    notes.push("No recent issue response samples; response signal uses neutral score.");
-  }
+  const responseSampleCount = responseDurations.filter((value): value is number => typeof value === "number").length;
+  const notes = maintainerHealthNotes({
+    mergeSampleCount: mergeDurations.length,
+    issueResponseSampleCount: responseSampleCount,
+    contributorCount: commitAuthors.size || null,
+    commitHistoryUnavailable: !commits.data.length
+  });
 
   return aggregateRepoHealth({
     daysSinceLastCommit,

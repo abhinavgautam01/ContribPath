@@ -13,6 +13,22 @@ export interface RepoHealthResult {
   healthBreakdown: HealthBreakdown;
 }
 
+export interface MaintainerHealthNoteSignals {
+  mergeSampleCount?: number;
+  issueResponseSampleCount?: number;
+  contributorCount?: number | null;
+  commitHistoryUnavailable?: boolean;
+}
+
+export function maintainerHealthNotes(signals: MaintainerHealthNoteSignals) {
+  const notes: string[] = [];
+  if (!signals.mergeSampleCount) notes.push("No recent merged PRs; PR merge signal uses neutral score.");
+  if (!signals.issueResponseSampleCount) notes.push("No recent issue response samples; response signal uses neutral score.");
+  if (signals.contributorCount === 1) notes.push("Solo Maintainer: recent activity appears to come from one contributor.");
+  if (signals.commitHistoryUnavailable) notes.push("Commit history unavailable; repository may have been recently transferred.");
+  return notes;
+}
+
 export function scoreDaysSinceLastCommit(days: number | null | undefined) {
   if (days == null) return 50;
   if (days < 7) return 100;

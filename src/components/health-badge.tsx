@@ -16,6 +16,15 @@ export function HealthBadge({ score, breakdown }: { score: number; breakdown?: H
           <span className="block">PR merge: {breakdown.prMergeRate}</span>
           <span className="block">Issue response: {breakdown.issueResponseTime}</span>
           <span className="block">Closed in 90d: {breakdown.issuesClosed90d}</span>
+          {breakdown.notes?.length ? (
+            <span className="mt-2 block border-t border-border-subtle pt-2">
+              {breakdown.notes.map((note) => (
+                <span key={note} className="mt-1 block">
+                  {note}
+                </span>
+              ))}
+            </span>
+          ) : null}
         </span>
       ) : null}
     </span>
